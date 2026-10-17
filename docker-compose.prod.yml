@@ -1,0 +1,42 @@
+# Production: app + Caddy (automatic HTTPS). See DEPLOY.md
+#   cp deploy/.env.prod.example .env   (then edit it)
+#   docker compose -f docker-compose.prod.yml up -d --build
+services:
+  app:
+    build:
+      context: .
+      args:
+        DATABASE_PROVIDER: sqlite
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: file:/app/db/openrecruitos.db
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      UPLOAD_DIR: /app/uploads
+      SEED_DEMO_DATA: "false"
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-false}
+    volumes:
+      - app-db:/app/db
+      - app-uploads:/app/uploads
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    volumes:
+      - ./deploy/Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+volumes:
+  app-db:
+  app-uploads:
+  caddy-data:
+  caddy-config:
