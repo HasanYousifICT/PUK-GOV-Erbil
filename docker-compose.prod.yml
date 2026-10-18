@@ -13,7 +13,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       UPLOAD_DIR: /app/uploads
       SEED_DEMO_DATA: "false"
-      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-false}
     volumes:
       - app-db:/app/db
       - app-uploads:/app/uploads

@@ -1,25 +1,43 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { ExternalLink, Info, KeyRound, Loader2, UserCog } from "lucide-react";
+import { Building2, KeyRound, ListChecks, Loader2, Palette, UserCog, Users, UsersRound, type LucideIcon } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiClient, SessionUser } from "@/lib/client";
-import { APP_BY, APP_COMPANY, APP_NAME, APP_TAGLINE, APP_WEBSITE, APP_WEBSITE_URL } from "@/lib/constants";
 import { PageHeader } from "@/components/shared";
 import { CandidateFieldsSettings } from "@/components/candidate-fields";
+import { OrganizationSettings, UsersSettings } from "@/components/admin-settings";
+import { CandidateAccessSettings, CvDesignSettings } from "@/components/candidate-access-settings";
 
 import { useI18n } from "@/lib/i18n";
+
+export type SettingsTab = "profile" | "organization" | "users" | "access" | "fields" | "cv";
+
+/** Sub-pages of Settings (shown as a submenu in the sidebar). `admin` ones are for administrators only. */
+export const SETTINGS_TABS: { tab: SettingsTab; label: string; description: string; icon: LucideIcon; admin: boolean }[] = [
+  { tab: "profile", label: "My account", description: "Your name and password.", icon: UserCog, admin: false },
+  { tab: "organization", label: "Organization", description: "Name, logo and details shown across the system.", icon: Building2, admin: true },
+  { tab: "users", label: "Users", description: "Staff accounts and their roles.", icon: Users, admin: true },
+  { tab: "access", label: "Candidate access", description: "Logins and unique codes for candidates.", icon: UsersRound, admin: true },
+  { tab: "fields", label: "Profile fields", description: "Sections and fields of the candidate profile and form.", icon: ListChecks, admin: true },
+  { tab: "cv", label: "CV design", description: "How candidate CVs look.", icon: Palette, admin: true },
+];
+
 export function SettingsView({
   user,
   onUserChange,
+  tab = "profile",
 }: {
   user: SessionUser;
   onUserChange: (user: SessionUser) => void;
+  tab?: SettingsTab;
 }) {
   const { t } = useI18n();
+  const current = SETTINGS_TABS.find((x) => x.tab === tab && (!x.admin || user.role === "admin")) ?? SETTINGS_TABS[0];
+  tab = current.tab;
   const [name, setName] = useState(user.name);
   const [nameBusy, setNameBusy] = useState(false);
 
@@ -74,8 +92,9 @@ export function SettingsView({
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t("Settings")} description={t("Your account settings. Keep it simple — that's the point.")} />
+      <PageHeader title={t(current.label)} description={t(current.description)} />
 
+      {tab === "profile" && (
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Profile */}
         <form onSubmit={handleProfileSave} className="rounded-xl border bg-card p-5 shadow-sm">
@@ -155,42 +174,17 @@ export function SettingsView({
         </form>
       </div>
 
-      {/* Candidate profile fields */}
-      <CandidateFieldsSettings />
+      )}
 
-      {/* About */}
-      <div className="rounded-xl border bg-card p-5 shadow-sm">
-        <div className="flex items-center gap-2">
-          <Info className="h-4 w-4 text-primary" />
-          <h2 className="font-semibold">{t("About")}</h2>
-        </div>
-        <div className="mt-3 flex items-center gap-3">
-          <img src="/logo-192.png" alt="" className="h-10 w-10" />
-          <div>
-            <p className="font-semibold">{APP_NAME}</p>
-            <p className="text-sm text-muted-foreground">{APP_TAGLINE}</p>
-            <p className="brand-gradient-text text-xs font-medium uppercase tracking-wide">{APP_BY}</p>
-          </div>
-        </div>
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          {t("Community Edition — a simple, self-hostable open-source ATS with jobs, candidates, pipeline, resume parsing, interviews and a dashboard. Advanced features (AI parsing, integrations, SSO, cloud storage) are available in the commercial editions.")}
-        </p>
-        <div className="mt-4 flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold">{APP_COMPANY}</p>
-            <p className="text-xs text-muted-foreground">{t("The company behind OpenRecruitOS")}</p>
-          </div>
-          <a
-            href={APP_WEBSITE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex w-fit items-center gap-1.5 rounded-lg border bg-muted/40 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            {APP_WEBSITE}
-          </a>
-        </div>
-      </div>
+      {user.role === "admin" && (
+        <>
+          {tab === "organization" && <OrganizationSettings />}
+          {tab === "users" && <UsersSettings me={user} />}
+          {tab === "access" && <CandidateAccessSettings />}
+          {tab === "fields" && <CandidateFieldsSettings />}
+          {tab === "cv" && <CvDesignSettings />}
+        </>
+      )}
     </div>
   );
 }

@@ -16,8 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Candidate, ParseResumeResult, apiClient } from "@/lib/client";
-import { CustomFieldInput, useCandidateFields } from "@/components/candidate-fields";
-import { CustomData, fieldLabel, isEmptyValue, parseCustomData } from "@/lib/candidate-fields";
+import { CustomFieldInput, useCandidateFields, useCandidateSections } from "@/components/candidate-fields";
+import { CustomData, fieldLabel, groupFields, isFieldVisible, isEmptyValue, parseCustomData, sectionLabel } from "@/lib/candidate-fields";
 
 import { useI18n } from "@/lib/i18n";
 const BLANK = {
@@ -49,6 +49,7 @@ export function CandidateFormDialog({
 }) {
   const { t, locale } = useI18n();
   const { fields } = useCandidateFields();
+  const { sections } = useCandidateSections();
   const [custom, setCustom] = useState<CustomData>({});
   const [form, setForm] = useState<CandidateFormValues>({ ...BLANK, resume: "", resumeName: "" });
   const [uploading, setUploading] = useState(false);
@@ -97,9 +98,6 @@ export function CandidateFormDialog({
         name: result.parsed.name || f.name,
         email: result.parsed.email || f.email,
         phone: result.parsed.phone || f.phone,
-        skills: result.parsed.skills || f.skills,
-        experience: result.parsed.experience || f.experience,
-        education: result.parsed.education || f.education,
         resume: result.resume,
         resumeName: result.resumeName,
       }));
@@ -128,12 +126,6 @@ export function CandidateFormDialog({
     if (!form.name.trim()) {
       setError("Candidate name is required");
       return;
-    }
-    for (const f of fields ?? []) {
-      if (f.required && isEmptyValue(custom[f.id])) {
-        setError(t("“{name}” is required", { name: fieldLabel(f, locale) }));
-        return;
-      }
     }
     setBusy(true);
     const payload = { ...form, customData: custom };
@@ -223,7 +215,7 @@ export function CandidateFormDialog({
                   {uploading ? t("Uploading & parsing…") : t("Click to upload or drag & drop")}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {t("Basic parsing fills name, email, phone, skills, experience & education")}
+                  {t("Basic parsing fills name, email and phone")}
                 </span>
               </button>
             )}
@@ -266,26 +258,6 @@ export function CandidateFormDialog({
               <Input id="cand-location" value={form.location} onChange={(e) => set("location")(e.target.value)} />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="cand-skills">{t("Skills (comma-separated)")}</Label>
-              <Input id="cand-skills" placeholder={t("React, Node.js, SQL")} value={form.skills} onChange={(e) => set("skills")(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cand-exp">{t("Experience")}</Label>
-              <Input id="cand-exp" placeholder={t("e.g. 3 years")} value={form.experience} onChange={(e) => set("experience")(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cand-edu">{t("Education")}</Label>
-              <Input id="cand-edu" placeholder={t("e.g. B.Tech Computer Science")} value={form.education} onChange={(e) => set("education")(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cand-salary">{t("Current / Expected Salary")}</Label>
-              <Input id="cand-salary" value={form.salary} onChange={(e) => set("salary")(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cand-notice">{t("Notice Period")}</Label>
-              <Input id="cand-notice" placeholder={t("e.g. 30 days / Immediate")} value={form.noticePeriod} onChange={(e) => set("noticePeriod")(e.target.value)} />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="cand-tags">{t("Tags (comma-separated)")}</Label>
               <Input id="cand-tags" placeholder={t("referral, frontend, priority")} value={form.tags} onChange={(e) => set("tags")(e.target.value)} />
             </div>
@@ -295,14 +267,15 @@ export function CandidateFormDialog({
             </div>
           </div>
 
-          {fields && fields.length > 0 && (
-            <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
-              <p className="text-sm font-medium">{t("Additional information")}</p>
+          {fields && sections && groupFields(fields, sections).map((g) => ({ ...g, fields: g.fields.filter((f) => isFieldVisible(f, custom, fields)) })).filter((g) => g.fields.length > 0).map(({ section, fields: group }) => (
+            <div key={section.id} className="space-y-3 rounded-xl border bg-muted/20 p-4">
+              <p className="text-sm font-medium">{sectionLabel(section, locale)}</p>
               <div className="grid gap-4 sm:grid-cols-2">
-                {fields.map((f) => (
-                  <div key={f.id} className={f.type === "file" ? "sm:col-span-2" : ""}>
+                {group.map((f) => (
+                  <div key={f.id} className={f.type === "file" || f.type === "table" || f.type === "longtext" ? "sm:col-span-2" : ""}>
                     <CustomFieldInput
                       field={f}
+                      showRequired={false}
                       value={custom[f.id]}
                       onChange={(v) =>
                         setCustom((c) => {
@@ -317,7 +290,7 @@ export function CandidateFormDialog({
                 ))}
               </div>
             </div>
-          )}
+          ))}
 
           {error && (
             <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

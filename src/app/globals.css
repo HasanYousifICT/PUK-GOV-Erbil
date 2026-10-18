@@ -179,3 +179,25 @@ html[lang="ckb"] select {
 html[dir="rtl"] .recharts-wrapper {
   direction: ltr;
 }
+
+/* Print only the CV */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #cv-print,
+  #cv-print * {
+    visibility: visible;
+  }
+  #cv-print {
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0;
+    width: 100%;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

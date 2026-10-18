@@ -52,10 +52,11 @@ import { NavState } from "@/components/app-shell";
 import { CandidateFormDialog } from "@/components/candidate-form-dialog";
 import { CandidateFilterPanel } from "@/components/candidate-filter-panel";
 import { BulkAddToJobDialog } from "@/components/bulk-add-dialog";
-import { CustomFieldValue, useCandidateFields } from "@/components/candidate-fields";
+import { CustomFieldValue, useCandidateFields, useCandidateSections } from "@/components/candidate-fields";
 import { activeFilterCount, CandidateFilters } from "@/lib/candidate-filters";
-import { fieldLabel, parseCustomData } from "@/lib/candidate-fields";
+import { fieldLabel, groupFields, parseCustomData, sectionLabel } from "@/lib/candidate-fields";
 import { Job } from "@/lib/client";
+import { CandidateCvDialog } from "@/components/candidate-access-settings";
 import { AddApplicationDialog } from "@/components/add-application-dialog";
 import {
   Avatar,
@@ -257,8 +258,8 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
                     />
                   </th>
                   <th className="px-4 py-3 font-medium">{t("Candidate")}</th>
-                  <th className="px-4 py-3 font-medium">{t("Skills")}</th>
-                  <th className="px-4 py-3 font-medium">{t("Experience")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Phone")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Candidate code")}</th>
                   <th className="px-4 py-3 font-medium">{t("Location")}</th>
                   <th className="px-4 py-3 text-center font-medium">{t("Applications")}</th>
                   <th className="px-4 py-3 text-end font-medium">{t("Actions")}</th>
@@ -287,10 +288,12 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
                         </div>
                       </div>
                     </td>
-                    <td className="max-w-52 px-4 py-3">
-                      <p className="truncate text-muted-foreground">{c.skills || "—"}</p>
+                    <td className="px-4 py-3 text-muted-foreground" dir="ltr">
+                      <span className="block truncate text-start">{c.phone || "—"}</span>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{c.experience || "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground" dir="ltr">
+                      {c.code || "—"}
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{c.location || "—"}</td>
                     <td className="px-4 py-3 text-center font-medium tabular-nums">
                       {c._count?.applications ?? 0}
@@ -351,10 +354,9 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
                     <p className="truncate font-medium">{c.name}</p>
                     <p className="truncate text-xs text-muted-foreground">{c.email || t("No email")}</p>
                   </div>
-                  <span className="text-xs text-muted-foreground">{c.experience || ""}</span>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span className="truncate">{c.skills || t("No skills listed")}</span>
+                  <span className="truncate" dir="ltr">{c.phone || c.code || ""}</span>
                   <span className="flex items-center gap-1">
                     <Briefcase className="h-3.5 w-3.5" />
                     {t("{n} applications", { n: c._count?.applications ?? 0 })}
@@ -405,6 +407,7 @@ export function CandidateDetailView({
   const [editOpen, setEditOpen] = useState(false);
   const [addJobOpen, setAddJobOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [cvOpen, setCvOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -496,6 +499,11 @@ export function CandidateDetailView({
                   </span>
                 )}
               </div>
+              {candidate.code && (
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  {t("Candidate code")}: <span className="rounded bg-muted px-1.5 py-0.5 font-mono font-medium text-foreground" dir="ltr">{candidate.code}</span>
+                </p>
+              )}
               {splitList(candidate.tags).length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {splitList(candidate.tags).map((tag) => (
@@ -506,6 +514,9 @@ export function CandidateDetailView({
             </div>
           </div>
           <div className="flex flex-wrap shrink-0 gap-2">
+            <Button variant="outline" onClick={() => setCvOpen(true)}>
+              <FileText className="me-2 h-4 w-4" /> {t("View CV")}
+            </Button>
             <Button onClick={() => setAddJobOpen(true)}>
               <Plus className="me-2 h-4 w-4" /> {t("Add to Job")}
             </Button>
@@ -526,48 +537,6 @@ export function CandidateDetailView({
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Left: profile info */}
         <div className="space-y-4">
-          <div className="rounded-xl border bg-card p-5 shadow-sm">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t("Profile")}</h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div className="flex items-start justify-between gap-3">
-                <dt className="flex items-center gap-1.5 text-muted-foreground">
-                  <Briefcase className="h-3.5 w-3.5" /> {t("Experience")}
-                </dt>
-                <dd className="text-end font-medium">{candidate.experience || "—"}</dd>
-              </div>
-              <div className="flex items-start justify-between gap-3">
-                <dt className="flex items-center gap-1.5 text-muted-foreground">
-                  <Banknote className="h-3.5 w-3.5" /> {t("Salary")}
-                </dt>
-                <dd className="text-end font-medium">{candidate.salary || "—"}</dd>
-              </div>
-              <div className="flex items-start justify-between gap-3">
-                <dt className="flex items-center gap-1.5 text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5" /> {t("Notice Period")}
-                </dt>
-                <dd className="text-end font-medium">{candidate.noticePeriod || "—"}</dd>
-              </div>
-            </dl>
-            <Separator className="my-4" />
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t("Skills")}</h3>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {splitList(candidate.skills).length ? (
-                splitList(candidate.skills).map((s) => (
-                  <Badge key={s} variant="secondary" className="font-normal">
-                    {s}
-                  </Badge>
-                ))
-              ) : (
-                <span className="text-sm text-muted-foreground">{t("No skills listed")}</span>
-              )}
-            </div>
-            <Separator className="my-4" />
-            <h3 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              <GraduationCap className="h-4 w-4" /> {t("Education")}
-            </h3>
-            <p className="mt-1.5 text-sm">{candidate.education || t("No education details")}</p>
-          </div>
-
           {/* Additional information */}
           <CustomFieldsCard customData={candidate.customData} />
 
@@ -703,6 +672,7 @@ export function CandidateDetailView({
         defaultCandidateId={candidate.id}
         onCreated={load}
       />
+      <CandidateCvDialog candidate={candidate} open={cvOpen} onOpenChange={setCvOpen} />
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
@@ -718,23 +688,28 @@ export function CandidateDetailView({
 function CustomFieldsCard({ customData }: { customData: string }) {
   const { t, locale } = useI18n();
   const { fields } = useCandidateFields();
+  const { sections } = useCandidateSections();
   const data = useMemo(() => parseCustomData(customData), [customData]);
-  if (!fields || fields.length === 0) return null;
+  if (!fields || !sections || fields.length === 0) return null;
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        {t("Additional information")}
-      </h2>
-      <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-        {fields.map((f) => (
-          <div key={f.id} className="min-w-0">
-            <dt className="text-xs text-muted-foreground">{fieldLabel(f, locale)}</dt>
-            <dd className="mt-0.5 text-sm">
-              <CustomFieldValue field={f} value={data[f.id]} />
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </div>
+    <>
+      {groupFields(fields, sections).map(({ section, fields: group }) => (
+        <div key={section.id} className="rounded-xl border bg-card p-5 shadow-sm">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            {sectionLabel(section, locale)}
+          </h2>
+          <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+            {group.map((f) => (
+              <div key={f.id} className="min-w-0">
+                <dt className="text-xs text-muted-foreground">{fieldLabel(f, locale)}</dt>
+                <dd className="mt-0.5 text-sm">
+                  <CustomFieldValue field={f} value={data[f.id]} />
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ))}
+    </>
   );
 }

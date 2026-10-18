@@ -1,10 +1,58 @@
 // OpenRecruitOS — shared client-side types & typed API client
 
 import type { JobCategory } from "@/lib/categories";
-import type { CandidateField, CustomData, FieldType, FileValue } from "@/lib/candidate-fields";
+import type { CandidateField, CandidateSection, CustomData, FieldType, FileValue, ShowIf } from "@/lib/candidate-fields";
 import type { CandidateFilters } from "@/lib/candidate-filters";
 
-export type SessionUser = { id: string; name: string; email: string };
+export type SessionUser = { id: string; name: string; email: string; role: "admin" | "recruiter" };
+
+export type ManagedUser = SessionUser & { createdAt: string };
+
+export type Org = {
+  name: string;
+  tagline: string;
+  byline: string;
+  company: string;
+  website: string;
+  websiteUrl: string;
+  footer: string;
+  logoUrl: string;
+  customLogo: boolean;
+};
+
+export type CandidateAccount = {
+  id: string;
+  username: string;
+  code: string;
+  fullName: string;
+  email: string;
+  candidateId: string | null;
+  submittedAt: string | null;
+  createdAt: string;
+};
+
+export type CvDesign = {
+  layout: "classic" | "modern" | "sidebar";
+  accent: string;
+  font: "sans" | "serif";
+  showCode: boolean;
+  showLogo: boolean;
+  hiddenSections: string[];
+  headerNote: string;
+  footerNote: string;
+};
+
+export type PortalJob = { id: string; title: string; location: string; employmentType: string };
+
+export type PortalData = {
+  account: { username: string; code: string; fullName: string; email: string };
+  submitted: boolean;
+  candidate: Candidate | null;
+  jobs: PortalJob[];
+  fields: CandidateField[];
+  sections: CandidateSection[];
+  design: CvDesign;
+};
 
 export type AuthStatus = { users: number; firstRun: boolean; signupOpen: boolean; demo: boolean };
 
@@ -39,6 +87,7 @@ export type Candidate = {
   noticePeriod: string;
   notes: string;
   tags: string;
+  code?: string | null; // candidate access code
   customData: string; // JSON map of custom field id -> value (see parseCustomData)
   createdAt: string;
   updatedAt: string;
@@ -117,6 +166,16 @@ export type DashboardData = {
     hires: number;
     rejected: number;
   };
+  trends: {
+    applicationsByDay: { date: string; count: number }[];
+    applications7d: number;
+    applicationsPrev7d: number;
+    candidates7d: number;
+    candidatesPrev7d: number;
+  };
+  upcoming: { id: string; date: string; time: string; interviewer: string; candidateId: string; candidate: string; job: string }[];
+  topJobs: { id: string; title: string; location: string; applications: number }[];
+  portal: { total: number; submitted: number };
   pipelineStages: string[];
   pipeline: Record<string, number>;
   recentActivity: {
@@ -232,6 +291,14 @@ export const apiClient = {
   resumeUrl: (key: string) => `/api/resumes?key=${encodeURIComponent(key)}`,
 
   /* custom candidate fields */
+  listCandidateSections: () => api<CandidateSection[]>("/api/candidate-sections"),
+  createCandidateSection: (data: { name: string; nameCkb?: string }) =>
+    api<CandidateSection>("/api/candidate-sections", { method: "POST", body: JSON.stringify(data) }),
+  updateCandidateSection: (id: string, data: { name?: string; nameCkb?: string }) =>
+    api<CandidateSection>(`/api/candidate-sections/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteCandidateSection: (id: string) => api<{ ok: boolean }>(`/api/candidate-sections/${id}`, { method: "DELETE" }),
+  reorderCandidateSections: (ids: string[]) =>
+    api<{ ok: boolean }>("/api/candidate-sections/reorder", { method: "PUT", body: JSON.stringify({ ids }) }),
   listCandidateFields: () => api<CandidateField[]>("/api/candidate-fields"),
   createCandidateField: (data: {
     label: string;
@@ -239,20 +306,84 @@ export const apiClient = {
     type: FieldType;
     options?: string[];
     required?: boolean;
+    publicForm?: boolean;
+    sectionId?: string;
+    showIf?: ShowIf | null;
   }) => api<CandidateField>("/api/candidate-fields", { method: "POST", body: JSON.stringify(data) }),
   updateCandidateField: (
     id: string,
-    data: { label?: string; labelCkb?: string; options?: string[]; required?: boolean }
+    data: { label?: string; labelCkb?: string; options?: string[]; required?: boolean; publicForm?: boolean; sectionId?: string; showIf?: ShowIf | null }
   ) => api<CandidateField>(`/api/candidate-fields/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteCandidateField: (id: string) =>
     api<{ ok: boolean }>(`/api/candidate-fields/${id}`, { method: "DELETE" }),
   reorderCandidateFields: (ids: string[]) =>
     api<{ ok: boolean }>("/api/candidate-fields/reorder", { method: "PUT", body: JSON.stringify({ ids }) }),
+  importBoardPreset: () =>
+    api<{ sections: number; fields: number; skipped: number; removedSections: number }>("/api/candidate-fields/preset", { method: "POST" }),
   uploadFile: (file: File) => {
     const form = new FormData();
     form.append("file", file);
     return api<FileValue & { size: number }>("/api/files", { method: "POST", body: form });
   },
+
+  /* organization (branding) */
+  getOrg: () => api<Org>("/api/public/org"),
+  updateOrg: (data: Omit<Org, "logoUrl" | "customLogo">) =>
+    api<Org>("/api/organization", { method: "PUT", body: JSON.stringify(data) }),
+  uploadLogo: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api<Org>("/api/organization/logo", { method: "POST", body: form });
+  },
+  removeLogo: () => api<Org>("/api/organization/logo", { method: "DELETE" }),
+
+  /* users (administrators) */
+  listUsers: () => api<ManagedUser[]>("/api/users"),
+  createUser: (data: { name: string; email: string; password: string; role: "admin" | "recruiter" }) =>
+    api<ManagedUser>("/api/users", { method: "POST", body: JSON.stringify(data) }),
+  updateUser: (id: string, data: { name?: string; role?: "admin" | "recruiter"; password?: string }) =>
+    api<ManagedUser>(`/api/users/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteUser: (id: string) => api<{ ok: boolean }>(`/api/users/${id}`, { method: "DELETE" }),
+
+  /* candidate accounts (administrators) */
+  listCandidateAccounts: () => api<CandidateAccount[]>("/api/candidate-accounts"),
+  createCandidateAccount: (data: { username: string; password: string; fullName?: string; email?: string }) =>
+    api<CandidateAccount>("/api/candidate-accounts", { method: "POST", body: JSON.stringify(data) }),
+  updateCandidateAccount: (id: string, data: { password?: string; fullName?: string; email?: string }) =>
+    api<CandidateAccount>(`/api/candidate-accounts/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteCandidateAccount: (id: string) => api<{ ok: boolean }>(`/api/candidate-accounts/${id}`, { method: "DELETE" }),
+
+  /* CV design */
+  getCvDesign: () => api<CvDesign>("/api/cv-design"),
+  updateCvDesign: (data: CvDesign) => api<CvDesign>("/api/cv-design", { method: "PUT", body: JSON.stringify(data) }),
+
+  /* candidate portal */
+  candidateLogin: (username: string, password: string) =>
+    api<{ ok: boolean }>("/api/candidate/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+  candidateLogout: () => api<{ ok: boolean }>("/api/candidate/logout", { method: "POST" }),
+  candidatePortal: () => api<PortalData>("/api/candidate/portal"),
+  candidateUpload: (file: File, kind: "resume" | "attachment") => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("kind", kind);
+    return api<{ key: string; name: string; parsed?: ParsedResume }>("/api/candidate/upload", { method: "POST", body: form });
+  },
+  candidateApply: (data: Record<string, unknown>) =>
+    api<{ ok: boolean; candidate: Candidate }>("/api/candidate/apply", { method: "POST", body: JSON.stringify(data) }),
+
+  /* public (no login) */
+  publicForm: () =>
+    api<{ jobs: { id: string; title: string; location: string; employmentType: string }[]; fields: CandidateField[]; sections: CandidateSection[] }>(
+      "/api/public/form"
+    ),
+  publicUpload: (file: File, kind: "resume" | "attachment") => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("kind", kind);
+    return api<{ key: string; name: string; parsed?: ParsedResume }>("/api/public/upload", { method: "POST", body: form });
+  },
+  publicApply: (data: Record<string, unknown>) =>
+    api<{ ok: boolean }>("/api/public/apply", { method: "POST", body: JSON.stringify(data) }),
 
   /* applications */
   listApplications: (filters?: { jobId?: string; candidateId?: string; stage?: string }) =>

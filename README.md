@@ -170,20 +170,20 @@ any entry, such as a 5th, 6th or deeper specialisation.
 
 ## Accounts & Sign Up
 
-There are two ways to get an account, depending on how you deployed:
+Accounts and roles:
 
-1. **First-run setup (fresh instance).** Deploy with an empty database and open the app —
-   OpenRecruitOS detects that no accounts exist and shows a *“Set up your workspace”* screen.
-   The first account you create acts as your admin/recruiter account.
-2. **Open sign-up.** The sign-in page has a **Sign up** link. Teammates can create their own
-   recruiter accounts (name + email + password) and immediately join the same workspace.
-   Passwords are hashed with bcrypt; sessions are signed JWTs in HttpOnly cookies.
-3. **Demo seed.** `bun run db:seed` (or the Docker entrypoint with `SEED_DEMO_DATA=true`)
-   creates the demo account `admin@attitude360.com` / `admin123` plus sample data.
+1. **First-run setup (fresh instance).** Open the app with an empty database and choose *Staff login* — it shows
+   *"Set up your workspace"*. The first account becomes the **administrator**. This is the only self-registration.
+2. **Adding users.** Only an administrator can add users: *Settings → Users → Add user* (name, email, password, role).
+   Administrators can also edit roles, reset passwords and delete accounts. There is no public sign-up.
+3. **Roles.** *Administrator*: everything, plus users, organization branding and candidate profile fields/sections.
+   *Recruiter*: jobs, candidates, applications, interviews.
+4. **Demo seed.** `SEED_DEMO_DATA=true` creates the demo administrator `admin@attitude360.com` / `admin123` plus sample data.
 
-> All accounts in the Community Edition are equal recruiters in a single workspace —
-> there are intentionally no roles or permission levels. Fine-grained RBAC, invites and
-> SSO are reserved for the commercial editions.
+## Organization branding
+*Settings → Organization* (administrators): name, logo, tagline, byline, company, website and footer text shown on the
+home page, login page, application form, sidebar and browser tab. Empty fields are hidden.
+Run `npx prisma db push` after updating (new `role` column and `Organization` table).
 
 ---
 
@@ -278,4 +278,17 @@ OpenRecruitOS is developed and maintained by **Attitude TalentBridge LLP** ·
 - **Candidates → Filters**: location, skills (must have all), resume, applied/not applied, job (in / not in) with stage, date added, plus filters on any custom field (operators depend on the type). The badge shows how many filters are active.
 - **Bulk send to a job**: tick candidates (or the header box to select everything currently shown), then *Add to job*. Candidates already on the job are skipped. Selection only ever includes candidates visible under the current filters.
 - After updating, run `npx prisma db push` once (new `CandidateField` table and `Candidate.customData` column).
-- Production deploy: see DEPLOY.md (docker-compose.prod.yml). Sign-up closes after the first account unless ALLOW_SIGNUP=true.
+
+## Public application form
+The home page offers two options: **I'm a candidate** (public application form, no login) and **Staff login**.
+- Applicants can upload a CV (auto-fills the form), choose an open job (or send a general application), and fill the custom fields you marked *Show on the public application form* (Settings → Candidate profile fields; untick it for internal-only fields).
+- Applications appear in Candidates with the tag `Online application`, and are added to the job's board at the *Applied* stage.
+- Direct link to a job: `https://your-domain/?job=<jobId>`; general form: `https://your-domain/?apply`.
+- Protections: rate limit per IP, hidden honeypot field, file type/size limits, and an existing candidate (same email) is never overwritten.
+- Run `npx prisma db push` after updating (new `publicForm` column).
+
+## Profile sections
+Custom fields belong to a **section** (Settings → Candidate profile fields → *Manage sections*, or choose "+ Add new section…" while adding a field). Defaults: Summary of information, Experience, Education, Skills, Additional information. Sections appear as groups in the candidate form, the public application form and as cards on the candidate profile. Deleting a section moves its fields to the first remaining section. Run `npx prisma db push` after updating.
+
+## Field types
+Text (short), Long text, Number, Date, Email, Phone, Web link, Yes/No, Dropdown (single choice), Multiple choice, Attachment. Each type is validated on the server, shown properly on the profile (links, badges) and has matching filters (e.g. date ranges, "includes" for multiple choice).

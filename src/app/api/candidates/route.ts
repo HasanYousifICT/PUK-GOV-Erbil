@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
 import { parseCustomData } from "@/lib/candidate-fields";
-import { CandidateFilters, CustomFilter, isCustomFilterActive, matchesCustomFilter } from "@/lib/candidate-filters";
+import { CandidateFilters, CustomFilter, isCustomFilterActive, isStdField, matchesCustomFilter, matchesStdFilter } from "@/lib/candidate-filters";
 import { isValidStage } from "@/lib/constants";
 import { loadFields, validateCustomData } from "@/lib/candidate-custom";
 
@@ -64,6 +64,7 @@ export async function GET(req: Request) {
           { skills: { contains: q } },
           { location: { contains: q } },
           { tags: { contains: q } },
+          { code: { contains: q } },
         ],
       });
     }
@@ -105,7 +106,12 @@ export async function GET(req: Request) {
       }
     }
 
-    const custom = (f.custom ?? []).filter(isCustomFilterActive);
+    const active = (f.custom ?? []).filter(isCustomFilterActive);
+    const std = active.filter((c) => isStdField(c.fieldId));
+    if (std.length) {
+      candidates = candidates.filter((c) => std.every((flt) => matchesStdFilter(c as unknown as Record<string, unknown>, flt)));
+    }
+    const custom = active.filter((c) => !isStdField(c.fieldId));
     if (custom.length) {
       const fields = await loadFields();
       const byId = new Map(fields.map((x) => [x.id, x]));
@@ -134,7 +140,7 @@ export async function POST(req: Request) {
       if (dup) throw new ApiError(409, "A candidate with this email already exists");
     }
     const fields = await loadFields();
-    const { data: customData } = validateCustomData(body.customData ?? {}, fields);
+    const { data: customData } = validateCustomData(body.customData ?? {}, fields, {}, { enforceRequired: false });
 
     const candidate = await db.candidate.create({
       data: {

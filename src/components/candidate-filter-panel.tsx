@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCandidateFields, useTypeLabels } from "@/components/candidate-fields";
+import { useCandidateFields, useCandidateSections, useTypeLabels } from "@/components/candidate-fields";
+import { SearchablePickerButton, SearchableSelect, SelectOption } from "@/components/searchable-select";
 import { ALL_STAGES } from "@/lib/constants";
 import { Job } from "@/lib/client";
-import { CandidateField, fieldLabel } from "@/lib/candidate-fields";
-import { CandidateFilters, CustomFilter, OPS_BY_TYPE, opNeedsValue } from "@/lib/candidate-filters";
+import { CandidateField, fieldLabel, hasOptions, sectionLabel } from "@/lib/candidate-fields";
+import { CandidateFilters, CustomFilter, isStdField, OPS_BY_TYPE, opNeedsValue, STD_FIELDS, STD_OPS } from "@/lib/candidate-filters";
 import { useI18n } from "@/lib/i18n";
 
 const ANY = "__any__";
@@ -56,6 +57,7 @@ export function CandidateFilterPanel({
   const { t, locale } = useI18n();
   const typeLabels = useTypeLabels();
   const { fields } = useCandidateFields();
+  const { sections } = useCandidateSections();
   const set = (patch: Partial<CandidateFilters>) => onChange({ ...filters, ...patch });
   const custom = filters.custom ?? [];
 
@@ -69,17 +71,43 @@ export function CandidateFilterPanel({
     lte: t("at most"),
     between: t("between"),
     is: t("is"),
+    on: t("on"),
+    after: t("on or after"),
+    before: t("on or before"),
+    includes: t("includes"),
   };
 
   function updateCustom(i: number, patch: Partial<CustomFilter>) {
     set({ custom: custom.map((c, idx) => (idx === i ? { ...c, ...patch } : c)) });
   }
-  function addCustom() {
-    const f = fields?.[0];
+  // every searchable field: the standard ones first, then the profile fields grouped by section
+  const stdFields: CandidateField[] = STD_FIELDS.map((x, i) => ({
+    id: x.id,
+    label: t(x.label),
+    labelCkb: "",
+    type: "text",
+    options: [],
+    required: false,
+    publicForm: false,
+    sectionId: "",
+    showIf: null,
+    sortOrder: i,
+  }));
+  const allFields: CandidateField[] = [...stdFields, ...(fields ?? [])];
+  const sectionName = (sid: string) => {
+    const sec = (sections ?? []).find((x) => x.id === sid) ?? (sections ?? [])[0];
+    return sec ? sectionLabel(sec, locale) : "";
+  };
+  const pickerOptions: SelectOption[] = [
+    ...stdFields.map((x) => ({ value: x.id, label: x.label, group: t("Standard fields") })),
+    ...(fields ?? []).map((x) => ({ value: x.id, label: fieldLabel(x, locale), group: sectionName(x.sectionId) })),
+  ];
+  function addFilter(id: string) {
+    const f = allFields.find((x) => x.id === id);
     if (!f) return;
-    set({ custom: [...custom, { fieldId: f.id, op: OPS_BY_TYPE[f.type][0], value: "" }] });
+    set({ custom: [...custom, { fieldId: f.id, op: (isStdField(f.id) ? STD_OPS : OPS_BY_TYPE[f.type])[0], value: "" }] });
   }
-  const fieldOf = (id: string): CandidateField | undefined => fields?.find((f) => f.id === id);
+  const fieldOf = (id: string): CandidateField | undefined => allFields.find((f) => f.id === id);
 
   return (
     <div className="space-y-4 rounded-xl border bg-card p-4 shadow-sm">
@@ -87,10 +115,6 @@ export function CandidateFilterPanel({
         <div className="space-y-1.5">
           <Label className="text-xs">{t("Location")}</Label>
           <Input value={filters.location ?? ""} onChange={(e) => set({ location: e.target.value })} />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">{t("Has all skills (comma-separated)")}</Label>
-          <Input value={filters.skills ?? ""} onChange={(e) => set({ skills: e.target.value })} placeholder={t("React, SQL")} />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{t("Added from")}</Label>
@@ -150,108 +174,111 @@ export function CandidateFilterPanel({
         )}
       </div>
 
-      {fields && fields.length > 0 && (
-        <div className="space-y-2 border-t pt-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Profile fields")}</p>
-          {custom.map((c, i) => {
-            const f = fieldOf(c.fieldId);
-            if (!f) return null;
-            const ops = OPS_BY_TYPE[f.type];
-            return (
-              <div key={i} className="flex flex-wrap items-end gap-2">
-                <div className="w-44">
-                  <Select
-                    value={c.fieldId}
-                    onValueChange={(id) => {
-                      const nf = fieldOf(id);
-                      if (nf) updateCustom(i, { fieldId: id, op: OPS_BY_TYPE[nf.type][0], value: "", value2: "" });
-                    }}
-                  >
-                    <SelectTrigger aria-label={t("Field")}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {fields.map((x) => (
-                        <SelectItem key={x.id} value={x.id}>
-                          {fieldLabel(x, locale)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-36">
-                  <Select value={c.op} onValueChange={(op) => updateCustom(i, { op, value: "", value2: "" })}>
-                    <SelectTrigger aria-label={typeLabels[f.type]}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ops.map((op) => (
-                        <SelectItem key={op} value={op}>
-                          {opLabels[op]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {opNeedsValue(c.op) &&
-                  (f.type === "select" ? (
-                    <div className="w-44">
-                      <Select value={c.value || ANY} onValueChange={(v) => updateCustom(i, { value: v === ANY ? "" : v })}>
-                        <SelectTrigger aria-label={t("Select an option")}>
-                          <SelectValue placeholder={t("Select an option")} />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-72">
-                          <SelectItem value={ANY}>{t("Select an option")}</SelectItem>
-                          {f.options.map((o) => (
-                            <SelectItem key={o} value={o}>
-                              {o}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : (
-                    <>
-                      <Input
-                        className="w-36"
-                        dir={f.type === "number" ? "ltr" : "auto"}
-                        type={f.type === "number" ? "number" : "text"}
-                        step="any"
-                        aria-label={t("Value")}
-                        value={c.value ?? ""}
-                        onChange={(e) => updateCustom(i, { value: e.target.value })}
-                      />
-                      {c.op === "between" && (
-                        <Input
-                          className="w-36"
-                          dir="ltr"
-                          type="number"
-                          step="any"
-                          aria-label={t("Value")}
-                          value={c.value2 ?? ""}
-                          onChange={(e) => updateCustom(i, { value2: e.target.value })}
-                        />
-                      )}
-                    </>
-                  ))}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                  aria-label={t("Remove")}
-                  onClick={() => set({ custom: custom.filter((_, idx) => idx !== i) })}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            );
-          })}
-          <Button variant="outline" size="sm" onClick={addCustom}>
+      <div className="space-y-2 border-t pt-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Field filters")}</p>
+          <SearchablePickerButton options={pickerOptions} onPick={addFilter}>
             <Plus className="me-1.5 h-3.5 w-3.5" />
             {t("Add field filter")}
-          </Button>
+          </SearchablePickerButton>
         </div>
-      )}
+        {custom.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            {t("Filter by any field: standard details or your own profile fields. Use the search box to find a field quickly.")}
+          </p>
+        )}
+        {custom.map((c, i) => {
+          const f = fieldOf(c.fieldId);
+          if (!f) return null;
+          const ops = isStdField(f.id) ? STD_OPS : OPS_BY_TYPE[f.type];
+          return (
+            <div key={i} className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/20 p-2">
+              <div className="w-56">
+                <SearchableSelect
+                  value={c.fieldId}
+                  ariaLabel={t("Field")}
+                  options={pickerOptions}
+                  onChange={(id) => {
+                    const nf = id ? fieldOf(id) : undefined;
+                    if (nf) updateCustom(i, { fieldId: nf.id, op: (isStdField(nf.id) ? STD_OPS : OPS_BY_TYPE[nf.type])[0], value: "", value2: "" });
+                  }}
+                />
+              </div>
+              <div className="w-36">
+                <Select value={c.op} onValueChange={(op) => updateCustom(i, { op, value: "", value2: "" })}>
+                  <SelectTrigger aria-label={typeLabels[f.type]}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ops.map((op) => (
+                      <SelectItem key={op} value={op}>
+                        {opLabels[op]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {opNeedsValue(c.op) &&
+                (f.type === "yesno" ? (
+                  <div className="w-36">
+                    <Select value={c.value || ANY} onValueChange={(v) => updateCustom(i, { value: v === ANY ? "" : v })}>
+                      <SelectTrigger aria-label={t("Value")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ANY}>{t("Select an option")}</SelectItem>
+                        <SelectItem value="yes">{t("Yes")}</SelectItem>
+                        <SelectItem value="no">{t("No")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : hasOptions(f.type) ? (
+                  <div className="w-56">
+                    <SearchableSelect
+                      value={c.value || undefined}
+                      ariaLabel={t("Select an option")}
+                      noneLabel={t("Select an option")}
+                      options={f.options.map((o) => ({ value: o, label: o }))}
+                      onChange={(v) => updateCustom(i, { value: v ?? "" })}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <Input
+                      className="w-44"
+                      dir={f.type === "number" || f.type === "date" ? "ltr" : "auto"}
+                      type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
+                      step="any"
+                      aria-label={t("Value")}
+                      value={c.value ?? ""}
+                      onChange={(e) => updateCustom(i, { value: e.target.value })}
+                    />
+                    {c.op === "between" && (
+                      <Input
+                        className="w-44"
+                        dir="ltr"
+                        type={f.type === "date" ? "date" : "number"}
+                        step="any"
+                        aria-label={t("Value")}
+                        value={c.value2 ?? ""}
+                        onChange={(e) => updateCustom(i, { value2: e.target.value })}
+                      />
+                    )}
+                  </>
+                ))}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                aria-label={t("Remove")}
+                onClick={() => set({ custom: custom.filter((_, idx) => idx !== i) })}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

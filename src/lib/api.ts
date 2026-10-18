@@ -15,6 +15,17 @@ export async function requireAuth(req: Request): Promise<SessionUser> {
   return user;
 }
 
+export async function getAuthUserOrNull(req: Request): Promise<SessionUser | null> {
+  return getAuthUser(req);
+}
+
+/** Like requireAuth, but only for administrators (403 otherwise). */
+export async function requireAdmin(req: Request): Promise<SessionUser> {
+  const user = await requireAuth(req);
+  if (user.role !== "admin") throw new ApiError(403, "Only an administrator can do this");
+  return user;
+}
+
 export function json(data: unknown, status = 200) {
   return Response.json(data, { status });
 }

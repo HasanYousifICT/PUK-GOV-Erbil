@@ -11,7 +11,7 @@ export async function GET() {
     return json({
       users,
       firstRun: users === 0,
-      signupOpen: users === 0 || process.env.ALLOW_SIGNUP === "true",
+      signupOpen: users === 0,
       demo: process.env.SEED_DEMO_DATA === "true" || (process.env.SEED_DEMO_DATA !== "false" && process.env.NODE_ENV !== "production"),
     });
   });

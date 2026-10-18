@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   Briefcase,
   CalendarDays,
+  ChevronDown,
   ClipboardList,
   LayoutDashboard,
   Layers,
@@ -17,14 +18,14 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ConfirmDialog } from "@/components/shared";
 import { apiClient, SessionUser } from "@/lib/client";
-import { APP_COMPANY, APP_NAME, APP_TAGLINE } from "@/lib/constants";
+import { useOrg } from "@/lib/org-context";
 import { cn } from "@/lib/utils";
 import { DashboardView } from "@/components/dashboard-view";
 import { JobsView, JobDetailView } from "@/components/jobs-view";
 import { CandidatesView, CandidateDetailView } from "@/components/candidates-view";
 import { ApplicationsView } from "@/components/applications-view";
 import { InterviewsView } from "@/components/interviews-view";
-import { SettingsView } from "@/components/settings-view";
+import { SETTINGS_TABS, SettingsTab, SettingsView } from "@/components/settings-view";
 import { ClassificationView } from "@/components/classification-view";
 
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
@@ -37,73 +38,126 @@ export type NavState =
   | { view: "applications"; focusApplicationId?: string }
   | { view: "interviews" }
   | { view: "classification" }
-  | { view: "settings" };
+  | { view: "settings"; tab?: SettingsTab };
 
-const NAV_ITEMS: { view: NavState["view"]; label: string; icon: typeof LayoutDashboard }[] = [
-  { view: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { view: "jobs", label: "Jobs", icon: Briefcase },
-  { view: "candidates", label: "Candidates", icon: Users },
-  { view: "applications", label: "Applications", icon: ClipboardList },
-  { view: "interviews", label: "Interviews", icon: CalendarDays },
-  { view: "classification", label: "Classification", icon: Layers },
-  { view: "settings", label: "Settings", icon: Settings },
+type NavItem = { view: NavState["view"]; label: string; icon: typeof LayoutDashboard };
+const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
+  {
+    title: "Recruitment",
+    items: [
+      { view: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { view: "jobs", label: "Jobs", icon: Briefcase },
+      { view: "candidates", label: "Candidates", icon: Users },
+      { view: "applications", label: "Applications", icon: ClipboardList },
+      { view: "interviews", label: "Interviews", icon: CalendarDays },
+    ],
+  },
+  { title: "Setup", items: [{ view: "classification", label: "Classification", icon: Layers }] },
 ];
 
 function SidebarContent({
-  activeView,
+  nav,
+  isAdmin,
   onNavigate,
 }: {
-  activeView: NavState["view"];
+  nav: NavState;
+  isAdmin: boolean;
   onNavigate: (state: NavState) => void;
 }) {
   const { t } = useI18n();
+  const { org } = useOrg();
+  const activeView = nav.view;
+  const activeTab: SettingsTab = nav.view === "settings" ? nav.tab ?? "profile" : "profile";
+  const [settingsOpen, setSettingsOpen] = useState(activeView === "settings");
+  const open = settingsOpen || activeView === "settings";
+  const tabs = SETTINGS_TABS.filter((x) => !x.admin || isAdmin);
+
+  const itemClass = (active: boolean) =>
+    cn(
+      "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+      active
+        ? "bg-primary text-primary-foreground shadow-sm"
+        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+    );
+
   return (
     <div className="flex h-full flex-col">
       {/* Brand */}
       <button
-        className="flex items-center gap-3 px-5 pb-6 pt-6 text-start text-sidebar-foreground"
+        className="flex items-center gap-3 px-5 pb-4 pt-6 text-start text-sidebar-foreground"
         onClick={() => onNavigate({ view: "dashboard" })}
       >
-        <img src="/logo-192.png" alt="" className="h-9 w-9" />
+        <img src={org.logoUrl} alt="" className="h-9 w-9 object-contain" />
         <span className="min-w-0">
-          <span className="block truncate text-sm font-bold tracking-tight">{APP_NAME}</span>
-          <span className="block text-[10px] leading-tight text-muted-foreground">{APP_TAGLINE}</span>
+          <span className="block truncate text-sm font-bold tracking-tight">{org.name}</span>
+          {org.tagline && <span className="block text-[10px] leading-tight text-muted-foreground">{org.tagline}</span>}
         </span>
       </button>
 
-      {/* Nav */}
-      <nav className="flex-1 space-y-1 px-3 pb-16" aria-label={t("Main navigation")}>
-        {NAV_ITEMS.map(({ view, label, icon: Icon }) => {
-          const active = view === activeView || (view === "jobs" && activeView === "job-detail") || (view === "candidates" && activeView === "candidate-detail");
-          return (
-            <button
-              key={view}
-              onClick={() => onNavigate({ view } as NavState)}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                active
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {t(label)}
-            </button>
-          );
-        })}
-        <div className="pt-3">
+      {/* Nav (scrolls when the menu is long; leaves room for the user bar) */}
+      <nav className="thin-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-3 pb-20 pt-2" aria-label={t("Main navigation")}>
+        {NAV_GROUPS.map((group) => (
+          <div key={group.title} className="space-y-1">
+            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">{t(group.title)}</p>
+            {group.items.map(({ view, label, icon: Icon }) => {
+              const active =
+                view === activeView ||
+                (view === "jobs" && activeView === "job-detail") ||
+                (view === "candidates" && activeView === "candidate-detail");
+              return (
+                <button
+                  key={view}
+                  onClick={() => onNavigate({ view } as NavState)}
+                  aria-current={active ? "page" : undefined}
+                  className={itemClass(active)}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {t(label)}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+
+        {/* Settings with a submenu */}
+        <div className="space-y-1">
+          <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">{t("Administration")}</p>
+          <button
+            onClick={() => setSettingsOpen((o) => (activeView === "settings" ? true : !o))}
+            aria-expanded={open}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              activeView === "settings" ? "text-sidebar-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            )}
+          >
+            <Settings className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-start">{t("Settings")}</span>
+            <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")} />
+          </button>
+          {open && (
+            <div className="ms-4 space-y-0.5 border-s border-sidebar-border ps-2">
+              {tabs.map(({ tab, label, icon: Icon }) => {
+                const active = activeView === "settings" && activeTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => onNavigate({ view: "settings", tab })}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(itemClass(active), "py-1.5 text-[13px]")}
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    {t(label)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div>
           <LanguageSwitcher className="w-full justify-start gap-2 border-sidebar-border bg-transparent text-sidebar-foreground hover:bg-white/10 hover:text-sidebar-foreground" />
         </div>
       </nav>
-
-      <div className="px-5 pb-4 pt-2 text-[10px] leading-relaxed text-sidebar-foreground/60">
-        {t("Community Edition")}
-        <br />
-        {t("By Attitude360")}
-        <br />
-        {APP_COMPANY}
-      </div>
     </div>
   );
 }
@@ -118,6 +172,7 @@ export function AppShell({
   onLogout: () => void;
 }) {
   const { t, dir } = useI18n();
+  const { org } = useOrg();
   const [nav, setNav] = useState<NavState>({ view: "dashboard" });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
@@ -146,14 +201,14 @@ export function AppShell({
     <div className="min-h-screen bg-background">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 start-0 z-30 hidden w-64 border-e border-sidebar-border bg-sidebar lg:block">
-        <SidebarContent activeView={activeView} onNavigate={navigate} />
+        <SidebarContent nav={nav} isAdmin={user.role === "admin"} onNavigate={navigate} />
       </aside>
 
       {/* Mobile top bar */}
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-card px-4 lg:hidden">
         <div className="flex items-center gap-2">
-          <img src="/logo-192.png" alt="" className="h-7 w-7" />
-          <span className="text-sm font-bold tracking-tight">{APP_NAME}</span>
+          <img src={org.logoUrl} alt="" className="h-7 w-7 object-contain" />
+          <span className="text-sm font-bold tracking-tight">{org.name}</span>
         </div>
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
@@ -165,7 +220,7 @@ export function AppShell({
             <SheetHeader className="sr-only">
               <SheetTitle>{t("Navigation")}</SheetTitle>
             </SheetHeader>
-            <SidebarContent activeView={activeView} onNavigate={navigate} />
+            <SidebarContent nav={nav} isAdmin={user.role === "admin"} onNavigate={navigate} />
           </SheetContent>
         </Sheet>
       </header>
@@ -188,7 +243,7 @@ export function AppShell({
           )}
           {activeView === "interviews" && <InterviewsView onNavigate={navigate} />}
           {activeView === "classification" && <ClassificationView />}
-          {activeView === "settings" && <SettingsView user={user} onUserChange={onUserChange} />}
+          {activeView === "settings" && <SettingsView user={user} onUserChange={onUserChange} tab={"tab" in nav ? nav.tab : undefined} />}
         </div>
       </main>
 
@@ -238,7 +293,7 @@ export function AppShell({
       <ConfirmDialog
         open={logoutOpen}
         onOpenChange={setLogoutOpen}
-        title={t("Sign out of OpenRecruitOS?")}
+        title={t("Sign out of {name}?", { name: org.name })}
         description={t("You will need to sign in again to access your workspace.")}
         confirmLabel={t("Sign out")}
         destructive={false}

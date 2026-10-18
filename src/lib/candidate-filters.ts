@@ -1,6 +1,6 @@
 // OpenRecruitOS — candidate search filters: shared types and matching logic.
 
-import { CandidateField, CustomData, FieldType, isEmptyValue, isFileValue } from "@/lib/candidate-fields";
+import { CandidateField, CustomData, FieldType, isEmptyValue, isFileValue, isTableValue } from "@/lib/candidate-fields";
 
 export type CustomFilter = {
   fieldId: string;
@@ -25,10 +25,47 @@ export type CandidateFilters = {
 /** Operators offered for each custom field type (first one is the default). */
 export const OPS_BY_TYPE: Record<FieldType, string[]> = {
   text: ["contains", "equals", "notEmpty", "empty"],
+  longtext: ["contains", "notEmpty", "empty"],
+  email: ["contains", "equals", "notEmpty", "empty"],
+  phone: ["contains", "equals", "notEmpty", "empty"],
+  url: ["contains", "notEmpty", "empty"],
   number: ["eq", "gte", "lte", "between", "notEmpty", "empty"],
+  date: ["on", "after", "before", "between", "notEmpty", "empty"],
+  yesno: ["is", "notEmpty", "empty"],
   select: ["is", "notEmpty", "empty"],
+  multiselect: ["includes", "notEmpty", "empty"],
   file: ["notEmpty", "empty"],
+  table: ["contains", "notEmpty", "empty"],
 };
+
+/** Built-in candidate fields that can be filtered too (ids start with "std:"). */
+export const STD_FIELDS = [
+  { id: "std:name", key: "name", label: "Full name" },
+  { id: "std:code", key: "code", label: "Candidate code" },
+  { id: "std:email", key: "email", label: "Email" },
+  { id: "std:phone", key: "phone", label: "Phone" },
+  { id: "std:location", key: "location", label: "Location" },
+  { id: "std:tags", key: "tags", label: "Tags" },
+  { id: "std:notes", key: "notes", label: "Notes" },
+] as const;
+
+export const STD_OPS = ["contains", "equals", "notEmpty", "empty"];
+
+export function isStdField(id: string): boolean {
+  return id.startsWith("std:");
+}
+
+/** Does a candidate satisfy a filter on one of the built-in fields? */
+export function matchesStdFilter(c: Record<string, unknown>, f: CustomFilter): boolean {
+  const def = STD_FIELDS.find((x) => x.id === f.fieldId);
+  if (!def) return true;
+  const raw = c[def.key];
+  const hay = (typeof raw === "string" ? raw : "").trim().toLowerCase();
+  if (f.op === "empty") return hay === "";
+  if (f.op === "notEmpty") return hay !== "";
+  const needle = (f.value ?? "").trim().toLowerCase();
+  return f.op === "equals" ? hay === needle : hay.includes(needle);
+}
 
 export function opNeedsValue(op: string): boolean {
   return !["notEmpty", "empty"].includes(op);
@@ -66,13 +103,36 @@ export function matchesCustomFilter(data: CustomData, field: CandidateField, f: 
 
   const needle = (f.value ?? "").trim();
   switch (field.type) {
-    case "text": {
+    case "text":
+    case "longtext":
+    case "email":
+    case "phone":
+    case "url": {
       const hay = String(v).toLowerCase();
       const n = needle.toLowerCase();
       return f.op === "equals" ? hay === n : hay.includes(n);
     }
     case "select":
+    case "yesno":
       return String(v) === needle;
+    case "multiselect":
+      return Array.isArray(v) && v.includes(needle);
+    case "date": {
+      const d = String(v);
+      const to = (f.value2 ?? "").trim();
+      switch (f.op) {
+        case "on":
+          return d === needle;
+        case "after":
+          return d >= needle;
+        case "before":
+          return d <= needle;
+        case "between":
+          return (!needle || d >= needle) && (!to || d <= to);
+        default:
+          return false;
+      }
+    }
     case "number": {
       const num = typeof v === "number" ? v : Number(v);
       if (!Number.isFinite(num)) return false;
@@ -91,6 +151,8 @@ export function matchesCustomFilter(data: CustomData, field: CandidateField, f: 
           return false;
       }
     }
+    case "table":
+      return isTableValue(v) && v.rows.some((r) => r.some((cell) => cell.toLowerCase().includes(needle.toLowerCase())));
     case "file":
       return isFileValue(v);
     default:

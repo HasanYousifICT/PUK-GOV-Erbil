@@ -343,9 +343,6 @@ function ApplicationDetailDialog({
             <p className="font-medium">{app.candidate?.name}</p>
             <p className="text-muted-foreground">{app.candidate?.email || t("No email")}</p>
             <p className="text-muted-foreground">{app.candidate?.phone || t("No phone")}</p>
-            {app.candidate?.skills && (
-              <p className="text-xs text-muted-foreground">{t("Skills:")} {app.candidate.skills}</p>
-            )}
             <div className="flex flex-wrap gap-2 pt-1">
               <Button
                 variant="outline"

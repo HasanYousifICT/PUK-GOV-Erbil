@@ -28,8 +28,9 @@ export async function POST(req: Request) {
       throw new ApiError(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
     }
 
-    // Open sign-up only for the very first account (the admin), unless ALLOW_SIGNUP=true.
-    if (process.env.ALLOW_SIGNUP !== "true" && (await db.user.count()) > 0) {
+    // Self-registration exists only to create the very first account (the administrator).
+    // After that, only an administrator can add users (Settings → Users).
+    if ((await db.user.count()) > 0) {
       throw new ApiError(403, "Sign-up is disabled. Ask an administrator to create your account.");
     }
 
@@ -40,8 +41,8 @@ export async function POST(req: Request) {
 
     const passwordHash = await hashPassword(password);
     const user = await db.user.create({
-      data: { name, email, password: passwordHash },
-      select: { id: true, name: true, email: true },
+      data: { name, email, password: passwordHash, role: "admin" },
+      select: { id: true, name: true, email: true, role: true },
     });
 
     const token = await createSessionToken(user.id);

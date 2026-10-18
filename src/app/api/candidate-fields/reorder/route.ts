@@ -1,10 +1,10 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAdmin } from "@/lib/api";
 
 /** PUT /api/candidate-fields/reorder — body: { ids: string[] } in the desired order. */
 export async function PUT(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireAdmin(req);
     const body = await readJson<{ ids?: unknown }>(req);
     if (!Array.isArray(body.ids) || body.ids.some((i) => typeof i !== "string")) {
       throw new ApiError(400, "ids are required");

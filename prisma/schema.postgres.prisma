@@ -15,6 +15,7 @@ model User {
   name      String
   email     String   @unique
   password  String
+  role      String   @default("recruiter") // admin | recruiter
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -70,6 +71,7 @@ model Candidate {
   notes        String   @default("")
   tags         String   @default("") // comma-separated
   customData   String   @default("{}") // JSON map: custom field id -> value
+  code         String?  @unique // candidate access code (set when the candidate applies through the portal)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   applications Application[]
@@ -121,7 +123,57 @@ model CandidateField {
   type      String   // text | number | file | select
   options   String   @default("[]") // JSON array of choices (select only)
   required  Boolean  @default(false)
+  publicForm Boolean @default(true) // shown on the public application form
+  sectionId String   @default("") // CandidateSection.id ("" = first section)
+  showIf    String   @default("") // JSON {fieldId, op, value} — empty = always shown
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model CandidateSection {
+  id        String   @id @default(cuid())
+  name      String
+  nameCkb   String   @default("")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Organization {
+  id         String   @id @default("org")
+  name       String
+  tagline    String   @default("")
+  byline     String   @default("")
+  company    String   @default("")
+  website    String   @default("")
+  websiteUrl String   @default("")
+  footer     String   @default("")
+  logo       String   @default("") // storage key of the uploaded logo ("" = built-in logo)
+  logoVersion Int     @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+model CandidateAccount {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  code         String   @unique // unique candidate code, shown read-only on the application form
+  fullName     String   @default("") // optional: pre-fills the application form
+  email        String   @default("") // optional: pre-fills the application form
+  candidateId  String?  @unique // set once the candidate has submitted the application
+  submittedAt  DateTime?
+  createdAt    DateTime @default(now())
+}
+
+model CvDesign {
+  id          String   @id @default("cv")
+  layout      String   @default("classic") // classic | modern | sidebar
+  accent      String   @default("#0369a1")
+  font        String   @default("sans") // sans | serif
+  showCode    Boolean  @default(true)
+  showLogo    Boolean  @default(true)
+  hiddenSections String @default("[]") // JSON array of section ids to leave out of the CV
+  headerNote  String   @default("")
+  footerNote  String   @default("")
+  updatedAt   DateTime @updatedAt
 }

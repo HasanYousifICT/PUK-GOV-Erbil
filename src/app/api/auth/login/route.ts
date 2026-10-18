@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { createSessionToken, sessionCookieHeader, verifyPassword } from "@/lib/auth";
+import { ensureAdminExists, createSessionToken, sessionCookieHeader, verifyPassword } from "@/lib/auth";
 import { ApiError, handle, json, readJson, str } from "@/lib/api";
 
 export async function POST(req: Request) {
@@ -14,8 +14,10 @@ export async function POST(req: Request) {
       throw new ApiError(401, "Invalid email or password");
     }
 
+    await ensureAdminExists();
+    const fresh = await db.user.findUnique({ where: { id: user.id }, select: { role: true } });
     const token = await createSessionToken(user.id);
-    const res = json({ id: user.id, name: user.name, email: user.email });
+    const res = json({ id: user.id, name: user.name, email: user.email, role: fresh?.role === "admin" ? "admin" : "recruiter" });
     res.headers.append("Set-Cookie", sessionCookieHeader(req, token));
     return res;
   });

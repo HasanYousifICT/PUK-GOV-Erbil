@@ -7,10 +7,12 @@
 FROM oven/bun:1.2 AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install
 
 FROM oven/bun:1.2 AS builder
 WORKDIR /app
+# Prisma needs OpenSSL to pick the right engine
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Pick the Prisma datasource provider at build time (sqlite | postgresql)
@@ -24,6 +26,8 @@ RUN bun run build
 
 FROM oven/bun:1.2 AS runner
 WORKDIR /app
+# Prisma needs OpenSSL at runtime (db push, queries)
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 

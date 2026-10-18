@@ -1,5 +1,7 @@
 import { getStorage } from "@/lib/storage";
-import { ApiError, handle, requireAuth } from "@/lib/api";
+import { ApiError, getAuthUserOrNull, handle } from "@/lib/api";
+import { getCandidateAccount } from "@/lib/candidate-auth";
+import { db } from "@/lib/db";
 
 /**
  * GET /api/resumes?key=resumes/<id>-<name>.pdf
@@ -7,10 +9,19 @@ import { ApiError, handle, requireAuth } from "@/lib/api";
  */
 export async function GET(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
     const url = new URL(req.url);
     const key = url.searchParams.get("key") || "";
     if (!key || key.includes("..")) throw new ApiError(400, "Invalid storage key");
+    if (!(await getAuthUserOrNull(req))) {
+      // a candidate may only open files that belong to their own application
+      const account = await getCandidateAccount(req);
+      const own = account?.candidateId
+        ? await db.candidate.findUnique({ where: { id: account.candidateId }, select: { resume: true, customData: true } })
+        : null;
+      if (!own || (own.resume !== key && !own.customData.includes(JSON.stringify(key)))) {
+        throw new ApiError(401, "Unauthorized");
+      }
+    }
 
     const data = await getStorage().read(key);
     if (!data) throw new ApiError(404, "Resume file not found");

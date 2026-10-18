@@ -63,7 +63,7 @@ export async function PUT(req: Request, { params }: Params) {
     let customData: string | undefined;
     if ("customData" in body) {
       const fields = await loadFields();
-      const result = validateCustomData(body.customData, fields, parseCustomData(existing.customData));
+      const result = validateCustomData(body.customData, fields, parseCustomData(existing.customData), { enforceRequired: false });
       customData = JSON.stringify(result.data);
       removedFiles = result.removedFiles;
     }

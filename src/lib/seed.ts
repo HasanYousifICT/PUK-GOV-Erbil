@@ -38,7 +38,7 @@ export async function seedDemoData(log: (msg: string) => void = console.log): Pr
   const admin = await db.user.upsert({
     where: { email: "admin@attitude360.com" },
     update: {},
-    create: { name: "Admin", email: "admin@attitude360.com", password: passwordHash },
+    create: { name: "Admin", email: "admin@attitude360.com", password: passwordHash, role: "admin" },
   });
   log(`✓ Admin user: ${admin.email} (password: admin123)`);
 

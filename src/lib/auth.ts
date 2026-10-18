@@ -27,6 +27,7 @@ export type SessionUser = {
   id: string;
   name: string;
   email: string;
+  role: "admin" | "recruiter";
 };
 
 export async function hashPassword(password: string): Promise<string> {
@@ -52,12 +53,20 @@ export async function getSessionUserFromToken(token: string | undefined): Promis
     if (!payload.sub) return null;
     const user = await db.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true, email: true, role: true },
     });
-    return user ?? null;
+    return user ? { ...user, role: user.role === "admin" ? "admin" : "recruiter" } : null;
   } catch {
     return null;
   }
+}
+
+/** Old databases have no admin: promote the oldest account so someone can manage users. */
+export async function ensureAdminExists(): Promise<void> {
+  const admins = await db.user.count({ where: { role: "admin" } });
+  if (admins > 0) return;
+  const first = await db.user.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } });
+  if (first) await db.user.update({ where: { id: first.id }, data: { role: "admin" } });
 }
 
 /** Read the session from a NextRequest cookie jar (API routes). */
