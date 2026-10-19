@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Candidate, ParseResumeResult, apiClient } from "@/lib/client";
 import { CustomFieldInput, useCandidateFields, useCandidateSections } from "@/components/candidate-fields";
-import { CustomData, fieldLabel, groupFields, isFieldVisible, isEmptyValue, parseCustomData, sectionLabel } from "@/lib/candidate-fields";
+import { CustomData, fieldLabel, groupFields, isFieldVisible, isEmptyValue, isPersonalSection, parseCustomData, sectionLabel } from "@/lib/candidate-fields";
 
 import { useI18n } from "@/lib/i18n";
 const BLANK = {
@@ -239,58 +239,72 @@ export function CandidateFormDialog({
             )}
           </div>
 
-          {/* Profile fields */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="cand-name">{t("Full Name *")}</Label>
-              <Input id="cand-name" value={form.name} onChange={(e) => set("name")(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cand-email">{t("Email")}</Label>
-              <Input id="cand-email" type="email" value={form.email} onChange={(e) => set("email")(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cand-phone">{t("Phone")}</Label>
-              <Input id="cand-phone" value={form.phone} onChange={(e) => set("phone")(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cand-location">{t("Location")}</Label>
-              <Input id="cand-location" value={form.location} onChange={(e) => set("location")(e.target.value)} />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="cand-tags">{t("Tags (comma-separated)")}</Label>
-              <Input id="cand-tags" placeholder={t("referral, frontend, priority")} value={form.tags} onChange={(e) => set("tags")(e.target.value)} />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="cand-notes">{t("Notes")}</Label>
-              <Textarea id="cand-notes" rows={3} placeholder={t("Recruiter notes…")} value={form.notes} onChange={(e) => set("notes")(e.target.value)} />
-            </div>
-          </div>
-
-          {fields && sections && groupFields(fields, sections).map((g) => ({ ...g, fields: g.fields.filter((f) => isFieldVisible(f, custom, fields)) })).filter((g) => g.fields.length > 0).map(({ section, fields: group }) => (
-            <div key={section.id} className="space-y-3 rounded-xl border bg-muted/20 p-4">
-              <p className="text-sm font-medium">{sectionLabel(section, locale)}</p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {group.map((f) => (
-                  <div key={f.id} className={f.type === "file" || f.type === "table" || f.type === "longtext" ? "sm:col-span-2" : ""}>
-                    <CustomFieldInput
-                      field={f}
-                      showRequired={false}
-                      value={custom[f.id]}
-                      onChange={(v) =>
-                        setCustom((c) => {
-                          const n = { ...c };
-                          if (v === undefined) delete n[f.id];
-                          else n[f.id] = v;
-                          return n;
-                        })
-                      }
-                    />
+          {/* Personal information: built-in fields first, then any custom fields of that section */}
+          {(() => {
+            const groups = fields && sections
+              ? groupFields(fields, sections).map((g) => ({ ...g, fields: g.fields.filter((f) => isFieldVisible(f, custom, fields)) })).filter((g) => g.fields.length > 0)
+              : [];
+            const personal = groups.find((g) => isPersonalSection(g.section));
+            const others = groups.filter((g) => g !== personal);
+            const renderCustom = (group: typeof groups[number]["fields"]) =>
+              group.map((f) => (
+                <div key={f.id} className={f.type === "file" || f.type === "table" || f.type === "longtext" ? "sm:col-span-2" : ""}>
+                  <CustomFieldInput
+                    field={f}
+                    showRequired={false}
+                    value={custom[f.id]}
+                    onChange={(v) =>
+                      setCustom((c) => {
+                        const n = { ...c };
+                        if (v === undefined) delete n[f.id];
+                        else n[f.id] = v;
+                        return n;
+                      })
+                    }
+                  />
+                </div>
+              ));
+            return (
+              <>
+                <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                  <p className="text-sm font-medium">{t("Personal information")}</p>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="cand-name">{t("Full Name *")}</Label>
+                      <Input id="cand-name" value={form.name} onChange={(e) => set("name")(e.target.value)} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cand-email">{t("Email")}</Label>
+                      <Input id="cand-email" type="email" value={form.email} onChange={(e) => set("email")(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cand-phone">{t("Phone")}</Label>
+                      <Input id="cand-phone" value={form.phone} onChange={(e) => set("phone")(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cand-location">{t("Location")}</Label>
+                      <Input id="cand-location" value={form.location} onChange={(e) => set("location")(e.target.value)} />
+                    </div>
+                    {personal && renderCustom(personal.fields)}
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="cand-tags">{t("Tags (comma-separated)")}</Label>
+                      <Input id="cand-tags" placeholder={t("referral, frontend, priority")} value={form.tags} onChange={(e) => set("tags")(e.target.value)} />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="cand-notes">{t("Notes")}</Label>
+                      <Textarea id="cand-notes" rows={3} placeholder={t("Recruiter notes…")} value={form.notes} onChange={(e) => set("notes")(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+                {others.map(({ section, fields: group }) => (
+                  <div key={section.id} className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                    <p className="text-sm font-medium">{sectionLabel(section, locale)}</p>
+                    <div className="grid gap-4 sm:grid-cols-2">{renderCustom(group)}</div>
                   </div>
                 ))}
-              </div>
-            </div>
-          ))}
+              </>
+            );
+          })()}
 
           {error && (
             <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

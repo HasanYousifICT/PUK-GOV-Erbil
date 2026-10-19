@@ -751,4 +751,8 @@ export const ckb: Record<string, string> = {
   "A field cannot depend on itself": "خانە ناتوانێت پشت بە خۆی ببەستێت",
   "Conditions cannot form a loop": "مەرجەکان ناتوانن بازنە دروست بکەن",
   "Choose the value that shows this field": "ئەو بەهایە هەڵبژێرە کە ئەم خانەیە پیشان دەدات",
+  "Personal information": "زانیاری کەسی",
+  "Built-in field": "خانەی ناوەکی سیستەم",
+  "Cannot be deleted": "ناسڕدرێتەوە",
+  "Full Name": "ناوی تەواو",
 };

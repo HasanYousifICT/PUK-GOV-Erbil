@@ -14,6 +14,7 @@ import {
   Link2,
   ListChecks,
   Loader2,
+  Lock,
   Mail,
   MoreHorizontal,
   Paperclip,
@@ -59,6 +60,8 @@ import {
   CustomValue,
   fieldLabel,
   groupFields,
+  BUILTIN_FIELDS,
+  isPersonalSection,
   hasList,
   hasOptions,
   isTableValue,
@@ -866,6 +869,34 @@ function FieldFormDialog({
   );
 }
 
+const BUILTIN_ICON = { user: Type, mail: Mail, phone: Phone, text: Type } as const;
+
+function BuiltInRows() {
+  const { t } = useI18n();
+  return (
+    <>
+      {BUILTIN_FIELDS.map((b) => {
+        const Icon = BUILTIN_ICON[b.icon];
+        return (
+          <li key={b.key} className="flex items-center gap-3 bg-muted/30 px-3 py-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+              <Icon className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{t(b.label)}</p>
+              <p className="truncate text-xs text-muted-foreground">{t("Built-in field")}</p>
+            </div>
+            <Badge variant="outline" className="gap-1 font-normal">
+              <Lock className="h-3 w-3" />
+              {t("Cannot be deleted")}
+            </Badge>
+          </li>
+        );
+      })}
+    </>
+  );
+}
+
 export function CandidateFieldsSettings() {
   const { t, locale } = useI18n();
   const typeLabels = useTypeLabels();
@@ -969,6 +1000,17 @@ export function CandidateFieldsSettings() {
         )}
         {fields && sections && (
           <div className="space-y-4">
+            {!sections.some(isPersonalSection) && (
+              <div>
+                <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Layers className="h-3.5 w-3.5" />
+                  {t("Personal information")}
+                </h3>
+                <ul className="divide-y rounded-lg border">
+                  <BuiltInRows />
+                </ul>
+              </div>
+            )}
             {groupFields(fields, sections, true).map(({ section, fields: group }) => (
               <div key={section.id}>
                 <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -976,12 +1018,13 @@ export function CandidateFieldsSettings() {
                   {sectionLabel(section, locale)}
                   <span className="font-normal normal-case">({group.length})</span>
                 </h3>
-                {group.length === 0 && (
+                {group.length === 0 && !isPersonalSection(section) && (
                   <p className="rounded-lg border border-dashed px-3 py-3 text-sm text-muted-foreground">
                     {t("No fields in this section yet.")}
                   </p>
                 )}
-                {group.length > 0 && <ul className="divide-y rounded-lg border">
+                {(group.length > 0 || isPersonalSection(section)) && <ul className="divide-y rounded-lg border">
+                  {isPersonalSection(section) && <BuiltInRows />}
                   {group.map((f, i) => {
                     const Icon = TYPE_ICON[f.type];
                     return (

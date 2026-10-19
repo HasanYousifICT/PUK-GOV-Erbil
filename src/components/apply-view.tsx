@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { CustomFieldInput } from "@/components/candidate-fields";
 import { apiClient, Candidate, PortalData } from "@/lib/client";
-import { CandidateField, CandidateSection, CustomData, fieldLabel, groupFields, isEmptyValue, isFieldVisible, sectionLabel } from "@/lib/candidate-fields";
+import { CandidateField, CandidateSection, CustomData, fieldLabel, groupFields, isEmptyValue, isFieldVisible, isPersonalSection, sectionLabel } from "@/lib/candidate-fields";
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
 
 type PublicJob = { id: string; title: string; location: string; employmentType: string };
@@ -252,53 +252,65 @@ export function ApplyView({
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="a-name">{t("Full Name *")}</Label>
-                <Input id="a-name" value={form.name} onChange={(e) => set("name")(e.target.value)} autoComplete="name" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="a-email">{t("Email *")}</Label>
-                <Input id="a-email" type="email" dir="ltr" value={form.email} onChange={(e) => set("email")(e.target.value)} autoComplete="email" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="a-phone">{t("Phone")}</Label>
-                <Input id="a-phone" dir="ltr" value={form.phone} onChange={(e) => set("phone")(e.target.value)} autoComplete="tel" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="a-loc">{t("Location")}</Label>
-                <Input id="a-loc" value={form.location} onChange={(e) => set("location")(e.target.value)} />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="a-notes">{t("Anything else you'd like us to know")}</Label>
-                <Textarea id="a-notes" rows={3} value={form.notes} onChange={(e) => set("notes")(e.target.value)} />
-              </div>
-            </div>
-
-            {groupFields(fields, sections).map((g) => ({ ...g, fields: g.fields.filter((f) => isFieldVisible(f, custom, fields)) })).filter((g) => g.fields.length > 0).map(({ section, fields: group }) => (
-              <div key={section.id} className="space-y-3 rounded-xl border bg-muted/20 p-4">
-                <p className="text-sm font-medium">{sectionLabel(section, locale)}</p>
-                <div className="grid gap-4 sm:grid-cols-2">
-              {group.map((f) => (
-                <div key={f.id} className={f.type === "file" || f.type === "table" || f.type === "longtext" ? "sm:col-span-2" : ""}>
-                  <CustomFieldInput
-                    field={f}
-                    value={custom[f.id]}
-                    upload={(file) => (portal ? apiClient.candidateUpload(file, "attachment") : apiClient.publicUpload(file, "attachment"))}
-                    onChange={(v) =>
-                      setCustom((c) => {
-                        const n = { ...c };
-                        if (v === undefined) delete n[f.id];
-                        else n[f.id] = v;
-                        return n;
-                      })
-                    }
-                  />
-                </div>
-              ))}
-                </div>
-              </div>
-            ))}
+            {(() => {
+              const groups = groupFields(fields, sections).map((g) => ({ ...g, fields: g.fields.filter((f) => isFieldVisible(f, custom, fields)) })).filter((g) => g.fields.length > 0);
+              const personal = groups.find((g) => isPersonalSection(g.section));
+              const others = groups.filter((g) => g !== personal);
+              const renderCustom = (group: typeof groups[number]["fields"]) =>
+                group.map((f) => (
+                  <div key={f.id} className={f.type === "file" || f.type === "table" || f.type === "longtext" ? "sm:col-span-2" : ""}>
+                    <CustomFieldInput
+                      field={f}
+                      value={custom[f.id]}
+                      upload={(file) => (portal ? apiClient.candidateUpload(file, "attachment") : apiClient.publicUpload(file, "attachment"))}
+                      onChange={(v) =>
+                        setCustom((c) => {
+                          const n = { ...c };
+                          if (v === undefined) delete n[f.id];
+                          else n[f.id] = v;
+                          return n;
+                        })
+                      }
+                    />
+                  </div>
+                ));
+              return (
+                <>
+                  <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                    <p className="text-sm font-medium">{t("Personal information")}</p>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="a-name">{t("Full Name *")}</Label>
+                        <Input id="a-name" value={form.name} onChange={(e) => set("name")(e.target.value)} autoComplete="name" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="a-email">{t("Email *")}</Label>
+                        <Input id="a-email" type="email" dir="ltr" value={form.email} onChange={(e) => set("email")(e.target.value)} autoComplete="email" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="a-phone">{t("Phone")}</Label>
+                        <Input id="a-phone" dir="ltr" value={form.phone} onChange={(e) => set("phone")(e.target.value)} autoComplete="tel" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="a-loc">{t("Location")}</Label>
+                        <Input id="a-loc" value={form.location} onChange={(e) => set("location")(e.target.value)} />
+                      </div>
+                      {personal && renderCustom(personal.fields)}
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label htmlFor="a-notes">{t("Anything else you'd like us to know")}</Label>
+                        <Textarea id="a-notes" rows={3} value={form.notes} onChange={(e) => set("notes")(e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+                  {others.map(({ section, fields: group }) => (
+                    <div key={section.id} className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                      <p className="text-sm font-medium">{sectionLabel(section, locale)}</p>
+                      <div className="grid gap-4 sm:grid-cols-2">{renderCustom(group)}</div>
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
 
             {/* honeypot: hidden from people, bots fill it */}
             <div className="absolute -start-[9999px] h-0 w-0 overflow-hidden" aria-hidden="true">

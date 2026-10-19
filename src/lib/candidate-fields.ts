@@ -82,6 +82,19 @@ export function sectionLabel(s: CandidateSection, locale: Locale): string {
   return locale === "ckb" && s.nameCkb ? s.nameCkb : s.name;
 }
 
+/** The section that holds the built-in fields (name, email, phone…): "Personal information". */
+export function isPersonalSection(s: CandidateSection): boolean {
+  return s.name.trim().toLowerCase() === "personal information" || s.nameCkb.trim() === "زانیاری کەسی";
+}
+
+/** Built-in candidate fields; they live in "Personal information" and cannot be deleted. */
+export const BUILTIN_FIELDS = [
+  { key: "name", label: "Full Name", icon: "user", required: true },
+  { key: "email", label: "Email", icon: "mail", required: true },
+  { key: "phone", label: "Phone", icon: "phone", required: true },
+  { key: "location", label: "Location", icon: "text", required: false },
+] as const;
+
 /** Group fields by section (section order, then field order). Empty sections are left out unless includeEmpty. */
 export function groupFields(
   fields: CandidateField[],
