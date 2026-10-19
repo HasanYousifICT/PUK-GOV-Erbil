@@ -38,6 +38,7 @@ import { categoryPathText, useCategories } from "@/components/category-picker";
 import { apiClient } from "@/lib/client";
 import { categoryName, JobCategory, MAX_CATEGORY_DEPTH, CategoryIndex } from "@/lib/categories";
 import { useI18n } from "@/lib/i18n";
+import { useCan } from "@/lib/permissions-context";
 
 type Editing = { mode: "add"; parent: JobCategory | null } | { mode: "edit"; category: JobCategory };
 
@@ -225,6 +226,7 @@ function ImportDialog({ open, onClose, onDone }: { open: boolean; onClose: () =>
 
 export function ClassificationView() {
   const { t, locale } = useI18n();
+  const canEdit = useCan("classification", "edit");
   const { list, index, error, reload } = useCategories();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
@@ -337,7 +339,7 @@ export function ClassificationView() {
         title={t("Job Classification")}
         description={t("Organise jobs into classes, sub-classes and deeper levels. Starts with the ILO ISCO-08 standard; add your own levels anywhere.")}
         action={
-          <>
+          !canEdit ? undefined : <>
             <Button variant="outline" onClick={() => setImportOpen(true)}>
               <Upload className="me-2 h-4 w-4" />
               {t("Import CSV")}

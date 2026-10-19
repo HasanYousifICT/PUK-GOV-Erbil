@@ -19,7 +19,21 @@ export async function GET(req: Request) {
       account.candidateId ? db.candidate.findUnique({ where: { id: account.candidateId } }) : Promise.resolve(null),
     ]);
     return json({
-      account: { username: account.username, code: account.code, fullName: account.fullName, email: account.email },
+      account: {
+        username: account.username,
+        code: account.code,
+        fullName: account.fullName,
+        email: account.email,
+        phone: account.phone ?? "",
+        draftAt: account.draftAt,
+      },
+      draft: (() => {
+        try {
+          return account.draft ? JSON.parse(account.draft) : null;
+        } catch {
+          return null;
+        }
+      })(),
       submitted: !!candidate,
       candidate,
       jobs,

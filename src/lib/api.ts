@@ -1,9 +1,11 @@
 // OpenRecruitOS — API route helpers (auth guard + JSON responses)
 
 import { getAuthUser, SessionUser } from "@/lib/auth";
+import { Area, Level, levelAtLeast } from "@/lib/permissions";
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  /** `extra` is sent to the browser next to the message (for example the id of a duplicate record). */
+  constructor(public status: number, message: string, public extra?: Record<string, unknown>) {
     super(message);
   }
 }
@@ -26,6 +28,15 @@ export async function requireAdmin(req: Request): Promise<SessionUser> {
   return user;
 }
 
+/** Signed in and allowed to `view` or `edit` an area (administrators always are). */
+export async function requireLevel(req: Request, area: Area, need: Level): Promise<SessionUser> {
+  const user = await requireAuth(req);
+  if (!levelAtLeast(user.permissions[area], need)) {
+    throw new ApiError(403, need === "edit" ? "You do not have permission to change this" : "You do not have permission to open this");
+  }
+  return user;
+}
+
 export function json(data: unknown, status = 200) {
   return Response.json(data, { status });
 }
@@ -35,7 +46,7 @@ export async function handle(fn: () => Promise<Response>): Promise<Response> {
     return await fn();
   } catch (err) {
     if (err instanceof ApiError) {
-      return Response.json({ error: err.message }, { status: err.status });
+      return Response.json({ ...err.extra, error: err.message }, { status: err.status });
     }
     console.error("[api]", err);
     const message = err instanceof Error ? err.message : "Internal server error";

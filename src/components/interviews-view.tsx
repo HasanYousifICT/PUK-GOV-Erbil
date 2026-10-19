@@ -37,10 +37,12 @@ import { NavState } from "@/components/app-shell";
 import { InterviewFormDialog } from "@/components/interview-form-dialog";
 
 import { useI18n } from "@/lib/i18n";
+import { useCan } from "@/lib/permissions-context";
 type Filter = "all" | "Scheduled" | "Completed" | "Cancelled";
 
 export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) => void }) {
   const { t } = useI18n();
+  const canEdit = useCan("interviews", "edit");
   const [interviews, setInterviews] = useState<Interview[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
@@ -93,7 +95,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
         title={t("Interviews")}
         description={t("Schedule, track and capture feedback for candidate interviews.")}
         action={
-          <Button
+          !canEdit ? undefined : <Button
             onClick={() => {
               setEditing(null);
               setFormOpen(true);

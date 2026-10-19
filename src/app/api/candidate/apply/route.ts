@@ -19,6 +19,9 @@ export async function POST(req: Request) {
     const resume = str(body.resume);
     if (resume && (!resume.startsWith("resumes/") || resume.includes(".."))) throw new ApiError(400, "Invalid resume");
 
+    const photo = str(body.photo);
+    if (photo && (!photo.startsWith("photos/") || photo.includes(".."))) throw new ApiError(400, "Invalid photo");
+
     let jobId = "";
     if (str(body.jobId)) {
       const job = await db.job.findUnique({ where: { id: str(body.jobId) }, select: { id: true, status: true } });
@@ -37,9 +40,10 @@ export async function POST(req: Request) {
           name,
           email,
           code: account.code,
-          phone: cut(body.phone, 50),
+          phone: cut(body.phone, 50) || account.phone || "",
           resume,
           resumeName: resume ? cut(body.resumeName, 200) : "",
+          photo,
           skills: cut(body.skills, 1000),
           experience: cut(body.experience, 200),
           education: cut(body.education, 500),
@@ -51,7 +55,7 @@ export async function POST(req: Request) {
           customData: JSON.stringify(customData),
         },
       });
-      await tx.candidateAccount.update({ where: { id: account.id }, data: { candidateId: c.id, submittedAt: new Date() } });
+      await tx.candidateAccount.update({ where: { id: account.id }, data: { candidateId: c.id, submittedAt: new Date(), draft: "", draftAt: null } });
       if (jobId) {
         await tx.application.create({
           data: {

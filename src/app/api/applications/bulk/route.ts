@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 
 const MAX_BATCH = 1000;
 
@@ -11,7 +11,7 @@ const MAX_BATCH = 1000;
  */
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "applications", "edit");
     const body = await readJson<{ candidateIds?: unknown; jobId?: unknown }>(req);
     const jobId = str(body.jobId);
     if (!jobId) throw new ApiError(400, "candidateId and jobId are required");

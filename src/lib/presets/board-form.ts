@@ -96,12 +96,11 @@ const f = (
 const lang = (en: string, ckb: string) => f("language", `Language: ${en}`, `زمانی ${ckb}`, "select", true, LEVELS);
 
 export const BOARD_FIELDS: PresetField[] = [
-  // Personal information (name, e-mail and main phone are already built into every candidate)
+  // Personal information (name, e-mail, main phone and the personal photo are already built into every candidate)
   f("personal", "Gender", "ڕەگەز", "select", true, ["نێر", "مێ", "هیتر", "نامەوێ دیاریبکەم"]),
   f("personal", "Title", "نازناو", "text", true),
   f("personal", "Mother's full name", "ناوی سیانی دایک", "text", true),
   f("personal", "Blood group", "گروپی خوێن", "select", true, ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]),
-  f("personal", "Personal photo", "وێنەی کەسی", "file", true),
   f("personal", "Date of birth", "بەرواری لەدایکبوون", "date", true),
   f("personal", "Age (years)", "تەمەن بەساڵ", "number", true),
   f("personal", "Place of birth (city)", "شوێنی لەدایکبوون (شار)", "select", true, CITIES),

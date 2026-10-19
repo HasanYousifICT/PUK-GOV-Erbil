@@ -61,6 +61,7 @@ import { NavState } from "@/components/app-shell";
 import { EMPLOYMENT_TYPES, JOB_STATUSES } from "@/lib/constants";
 
 import { useI18n } from "@/lib/i18n";
+import { useCan } from "@/lib/permissions-context";
 import { CategoryFilter, CategoryPicker, categoryPathText, useCategories } from "@/components/category-picker";
 import { descendantIds } from "@/lib/categories";
 /* ------------------------------ Job form dialog ----------------------------- */
@@ -279,6 +280,7 @@ type JobFilter = "all" | "Open" | "Closed";
 
 export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void }) {
   const { t, locale } = useI18n();
+  const canEdit = useCan("jobs", "edit");
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<JobFilter>("all");
@@ -349,7 +351,7 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
         title={t("Jobs")}
         description={t("Manage your open positions and track applications.")}
         action={
-          <Button
+          !canEdit ? undefined : <Button
             onClick={() => {
               setEditing(null);
               setFormOpen(true);
@@ -596,6 +598,7 @@ export function JobDetailView({
   onNavigate: (state: NavState) => void;
 }) {
   const { t, locale } = useI18n();
+  const canEdit = useCan("jobs", "edit");
   const { index: catIndex } = useCategories();
   const [job, setJob] = useState<JobDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -695,7 +698,7 @@ export function JobDetailView({
             </span>
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        {canEdit && <div className="flex shrink-0 gap-2">
           <Button
             variant="outline"
             onClick={toggleStatus}
@@ -714,7 +717,7 @@ export function JobDetailView({
           >
             <Trash2 className="me-2 h-4 w-4" /> {t("Delete")}
           </Button>
-        </div>
+        </div>}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

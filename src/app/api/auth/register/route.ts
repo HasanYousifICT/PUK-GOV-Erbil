@@ -5,7 +5,7 @@
 
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
-import { createSessionToken, hashPassword, sessionCookieHeader } from "@/lib/auth";
+import { createSessionToken, hashPassword, SESSION_SELECT, sessionCookieHeader, toSessionUser } from "@/lib/auth";
 import { ApiError, handle, json, readJson, str } from "@/lib/api";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -42,11 +42,11 @@ export async function POST(req: Request) {
     const passwordHash = await hashPassword(password);
     const user = await db.user.create({
       data: { name, email, password: passwordHash, role: "admin" },
-      select: { id: true, name: true, email: true, role: true },
+      select: SESSION_SELECT,
     });
 
     const token = await createSessionToken(user.id);
-    const res = json(user);
+    const res = json(toSessionUser(user));
     res.headers.append("Set-Cookie", sessionCookieHeader(req, token));
     return res;
   });

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { MAX_CATEGORY_DEPTH } from "@/lib/categories";
 import { ensureJobCategories } from "@/lib/job-categories-seed";
 
@@ -43,7 +43,7 @@ function parseCsv(text: string, delimiter: string): string[][] {
  */
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "classification", "edit");
     const body = await readJson<Record<string, unknown>>(req);
     const csv = str(body.csv).replace(/^﻿/, "");
     if (!csv.trim()) throw new ApiError(400, "CSV content is required");

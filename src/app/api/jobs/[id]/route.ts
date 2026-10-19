@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { EMPLOYMENT_TYPES, JOB_STATUSES } from "@/lib/constants";
 
 type Params = { params: Promise<{ id: string }> };
@@ -30,7 +30,7 @@ export async function GET(req: Request, { params }: Params) {
 /** PUT /api/jobs/:id — update job (fields and/or status open/close) */
 export async function PUT(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "jobs", "edit");
     const { id } = await params;
     const body = await readJson<Record<string, unknown>>(req);
     const existing = await db.job.findUnique({ where: { id } });
@@ -75,7 +75,7 @@ export async function PUT(req: Request, { params }: Params) {
 /** DELETE /api/jobs/:id */
 export async function DELETE(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "jobs", "edit");
     const { id } = await params;
     const existing = await db.job.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Job not found");

@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { parseCustomData } from "@/lib/candidate-fields";
 import { CandidateFilters, CustomFilter, isCustomFilterActive, isStdField, matchesCustomFilter, matchesStdFilter } from "@/lib/candidate-filters";
 import { isValidStage } from "@/lib/constants";
@@ -50,7 +50,7 @@ function parseFilters(raw: string | null): CandidateFilters {
 /** GET /api/candidates?q=&filters=<json> — list candidates with application counts */
 export async function GET(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "candidates", "view");
     const url = new URL(req.url);
     const q = url.searchParams.get("q")?.trim();
     const f = parseFilters(url.searchParams.get("filters"));
@@ -128,9 +128,14 @@ export async function GET(req: Request) {
 }
 
 /** POST /api/candidates — create candidate (optionally referencing an uploaded resume key) */
+function photoKey(v: unknown): string {
+  const k = str(v);
+  return k.startsWith("photos/") && !k.includes("..") ? k : "";
+}
+
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "candidates", "edit");
     const body = await readJson<Record<string, unknown>>(req);
     const name = str(body.name).trim();
     if (!name) throw new ApiError(400, "Candidate name is required");
@@ -149,6 +154,7 @@ export async function POST(req: Request) {
         phone: str(body.phone),
         resume: str(body.resume),
         resumeName: str(body.resumeName),
+        photo: photoKey(body.photo),
         skills: str(body.skills),
         experience: str(body.experience),
         education: str(body.education),

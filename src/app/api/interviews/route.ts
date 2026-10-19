@@ -1,10 +1,10 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 
 /** GET /api/interviews — all interviews with application → candidate & job context */
 export async function GET(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "interviews", "view");
     const url = new URL(req.url);
     const status = url.searchParams.get("status");
     const interviews = await db.interview.findMany({
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
 /** POST /api/interviews — schedule an interview for an application */
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "interviews", "edit");
     const body = await readJson<Record<string, unknown>>(req);
     const applicationId = str(body.applicationId);
     const interviewer = str(body.interviewer).trim();

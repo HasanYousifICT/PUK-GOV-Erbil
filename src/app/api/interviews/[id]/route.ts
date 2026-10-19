@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { isValidInterviewStatus } from "@/lib/constants";
 
 type Params = { params: Promise<{ id: string }> };
@@ -18,7 +18,7 @@ const INCLUDE = {
 /** PUT /api/interviews/:id — edit details, complete/cancel, add feedback */
 export async function PUT(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "interviews", "edit");
     const { id } = await params;
     const body = await readJson<Record<string, unknown>>(req);
     const existing = await db.interview.findUnique({ where: { id } });
@@ -59,7 +59,7 @@ export async function PUT(req: Request, { params }: Params) {
 /** DELETE /api/interviews/:id */
 export async function DELETE(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "interviews", "edit");
     const { id } = await params;
     const existing = await db.interview.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Interview not found");

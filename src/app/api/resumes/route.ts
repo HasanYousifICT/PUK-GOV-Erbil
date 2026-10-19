@@ -16,9 +16,10 @@ export async function GET(req: Request) {
       // a candidate may only open files that belong to their own application
       const account = await getCandidateAccount(req);
       const own = account?.candidateId
-        ? await db.candidate.findUnique({ where: { id: account.candidateId }, select: { resume: true, customData: true } })
+        ? await db.candidate.findUnique({ where: { id: account.candidateId }, select: { resume: true, photo: true, customData: true } })
         : null;
-      if (!own || (own.resume !== key && !own.customData.includes(JSON.stringify(key)))) {
+      const inDraft = !!account?.draft && account.draft.includes(JSON.stringify(key));
+      if (!inDraft && (!own || (own.resume !== key && own.photo !== key && !own.customData.includes(JSON.stringify(key))))) {
         throw new ApiError(401, "Unauthorized");
       }
     }
@@ -39,8 +40,9 @@ export async function GET(req: Request) {
       png: "image/png",
       jpg: "image/jpeg",
       jpeg: "image/jpeg",
+      webp: "image/webp",
     };
-    const showInline = ["pdf", "png", "jpg", "jpeg"].includes(ext || "");
+    const showInline = ["pdf", "png", "jpg", "jpeg", "webp"].includes(ext || "");
     return new Response(new Uint8Array(data), {
       headers: {
         "Content-Type": types[ext || ""] || "application/octet-stream",

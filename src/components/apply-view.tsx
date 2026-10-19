@@ -1,15 +1,17 @@
 "use client";
 
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CheckCircle2, FileText, Loader2, Upload, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileText, Loader2, Save, Upload, X } from "lucide-react";
+import { toast } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { CustomFieldInput } from "@/components/candidate-fields";
+import { PhotoPicker } from "@/components/photo-picker";
 import { apiClient, Candidate, PortalData } from "@/lib/client";
-import { CandidateField, CandidateSection, CustomData, fieldLabel, groupFields, isEmptyValue, isFieldVisible, isPersonalSection, sectionLabel } from "@/lib/candidate-fields";
+import { CandidateField, CandidateSection, CustomData, fieldLabel, groupFields, isEmptyValue, isFieldVisible, isPersonalSection, parseCustomData, sectionLabel } from "@/lib/candidate-fields";
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
 
 type PublicJob = { id: string; title: string; location: string; employmentType: string };
@@ -40,19 +42,33 @@ export function ApplyView({
 }: {
   onBack: () => void;
   backLabel?: string;
-  portal?: { data: PortalData; onSubmitted: (c: Candidate) => void };
+  /** `existing`: the candidate already submitted and is now completing/correcting the profile. */
+  portal?: { data: PortalData; existing?: Candidate | null; onSubmitted: (c: Candidate) => void; onCancel?: () => void };
 }) {
   const { t, locale } = useI18n();
   const [jobs, setJobs] = useState<PublicJob[]>(portal?.data.jobs ?? []);
   const [fields, setFields] = useState<CandidateField[]>(portal?.data.fields ?? []);
   const [sections, setSections] = useState<CandidateSection[]>(portal?.data.sections ?? []);
   const [loading, setLoading] = useState(!portal);
-  const [form, setForm] = useState(
-    portal ? { ...BLANK, name: portal.data.account.fullName, email: portal.data.account.email } : BLANK
-  );
-  const [jobId, setJobId] = useState(NO_JOB);
-  const [custom, setCustom] = useState<CustomData>({});
-  const [resume, setResume] = useState<{ key: string; name: string } | null>(null);
+  const existing = portal?.existing ?? null;
+  const draft = !existing ? portal?.data.draft ?? null : null;
+  const [form, setForm] = useState(() => {
+    if (!portal) return BLANK;
+    if (existing) return { ...BLANK, name: existing.name, email: existing.email, phone: existing.phone, location: existing.location, notes: existing.notes };
+    if (draft) return { ...BLANK, name: draft.name, email: draft.email, phone: draft.phone, location: draft.location, notes: draft.notes };
+    const a = portal.data.account;
+    return { ...BLANK, name: a.fullName, email: a.email, phone: a.phone };
+  });
+  const [jobId, setJobId] = useState(draft?.jobId || NO_JOB);
+  const [custom, setCustom] = useState<CustomData>(() => (existing ? parseCustomData(existing.customData) : draft?.customData ?? {}));
+  const [resume, setResume] = useState<{ key: string; name: string } | null>(() => {
+    if (existing?.resume) return { key: existing.resume, name: existing.resumeName };
+    if (draft?.resume) return { key: draft.resume, name: draft.resumeName };
+    return null;
+  });
+  const [photo, setPhoto] = useState(existing?.photo ?? draft?.photo ?? "");
+  const [savedAt, setSavedAt] = useState<string | null>(portal?.data.account.draftAt ?? null);
+  const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +117,30 @@ export function ApplyView({
     }
   }
 
+  const payloadNow = () => ({
+    ...form,
+    jobId: jobId === NO_JOB ? "" : jobId,
+    resume: resume?.key ?? "",
+    resumeName: resume?.name ?? "",
+    photo,
+    customData: custom,
+  });
+
+  /** Save what has been filled in so far; the candidate can come back and finish later. */
+  async function saveDraft() {
+    setError(null);
+    setSaving(true);
+    try {
+      const r = await apiClient.candidateSaveDraft(payloadNow());
+      setSavedAt(r.savedAt);
+      toast.success("Your progress is saved. You can come back and finish later.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -113,15 +153,9 @@ export function ApplyView({
     }
     setBusy(true);
     try {
-      const payload = {
-        ...form,
-        jobId: jobId === NO_JOB ? "" : jobId,
-        resume: resume?.key ?? "",
-        resumeName: resume?.name ?? "",
-        customData: custom,
-      };
+      const payload = payloadNow();
       if (portal) {
-        const r = await apiClient.candidateApply(payload);
+        const r = existing ? await apiClient.candidateUpdateProfile(payload) : await apiClient.candidateApply(payload);
         window.scrollTo({ top: 0 });
         portal.onSubmitted(r.candidate);
         return;
@@ -170,7 +204,7 @@ export function ApplyView({
         <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" /> {backLabel ?? t("Back")}
       </button>
       <div className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
-        <h1 className="text-2xl font-bold tracking-tight">{t("Candidate application")}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{existing ? t("Edit my profile") : t("Candidate application")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {t("Upload your CV to fill the form automatically, or enter your details manually.")}
         </p>
@@ -197,7 +231,7 @@ export function ApplyView({
                 </p>
               </div>
             )}
-            {jobs.length > 0 && (
+            {jobs.length > 0 && !existing && (
               <div className="space-y-2">
                 <Label>{t("Position")}</Label>
                 <Select value={jobId} onValueChange={setJobId}>
@@ -279,6 +313,13 @@ export function ApplyView({
                   <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
                     <p className="text-sm font-medium">{t("Personal information")}</p>
                     <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
+                        <PhotoPicker
+                          value={photo}
+                          upload={(f) => (portal ? apiClient.candidateUpload(f, "photo") : apiClient.publicUpload(f, "photo"))}
+                          onChange={setPhoto}
+                        />
+                      </div>
                       <div className="space-y-2">
                         <Label htmlFor="a-name">{t("Full Name *")}</Label>
                         <Input id="a-name" value={form.name} onChange={(e) => set("name")(e.target.value)} autoComplete="name" />
@@ -326,10 +367,29 @@ export function ApplyView({
               </div>
             )}
 
-            <Button type="submit" size="lg" className="w-full" disabled={busy || uploading}>
-              {busy && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-              {t("Submit application")}
-            </Button>
+            {portal && !existing && (
+              <div className="rounded-xl border border-dashed bg-muted/30 p-3 text-center">
+                <p className="text-xs text-muted-foreground">
+                  {t("Not ready yet? Save what you have filled in and finish later. Nothing is sent to us until you press “Submit application”.")}
+                </p>
+                <Button type="button" variant="outline" className="mt-2" onClick={saveDraft} disabled={saving || busy || uploading}>
+                  {saving ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Save className="me-2 h-4 w-4" />}
+                  {t("Save progress")}
+                </Button>
+                {savedAt && <p className="mt-1.5 text-xs text-emerald-700">{t("Last saved")}: {new Date(savedAt).toLocaleString(locale === "ckb" ? "ckb" : undefined)}</p>}
+              </div>
+            )}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {existing && portal?.onCancel && (
+                <Button type="button" size="lg" variant="outline" className="sm:w-40" onClick={portal.onCancel} disabled={busy}>
+                  {t("Cancel")}
+                </Button>
+              )}
+              <Button type="submit" size="lg" className="flex-1" disabled={busy || uploading}>
+                {busy && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+                {existing ? t("Save changes") : t("Submit application")}
+              </Button>
+            </div>
           </form>
         )}
       </div>

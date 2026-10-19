@@ -1,10 +1,10 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 
 /** GET /api/applications — full list with candidate, job, stage history and interviews */
 export async function GET(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "applications", "view");
     const url = new URL(req.url);
     const jobId = url.searchParams.get("jobId") || undefined;
     const candidateId = url.searchParams.get("candidateId") || undefined;
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
 /** POST /api/applications — add a candidate to a job (starts at Applied) */
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "applications", "edit");
     const body = await readJson<{ candidateId?: string; jobId?: string }>(req);
     const candidateId = str(body.candidateId);
     const jobId = str(body.jobId);

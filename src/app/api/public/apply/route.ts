@@ -48,6 +48,7 @@ export async function POST(req: Request) {
           phone: cut(body.phone, 50),
           resume: resume,
           resumeName: resume ? cut(body.resumeName, 200) : "",
+          photo: str(body.photo).startsWith("photos/") && !str(body.photo).includes("..") ? str(body.photo) : "",
           skills: cut(body.skills, 1000),
           experience: cut(body.experience, 200),
           education: cut(body.education, 500),

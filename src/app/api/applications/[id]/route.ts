@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { isValidStage, statusForStage } from "@/lib/constants";
 
 type Params = { params: Promise<{ id: string }> };
@@ -7,7 +7,7 @@ type Params = { params: Promise<{ id: string }> };
 /** GET /api/applications/:id — detail with history and interviews */
 export async function GET(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "applications", "view");
     const { id } = await params;
     const application = await db.application.findUnique({
       where: { id },
@@ -30,7 +30,7 @@ export async function GET(req: Request, { params }: Params) {
  */
 export async function PUT(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "applications", "edit");
     const { id } = await params;
     const body = await readJson<{ stage?: string }>(req);
     const stage = str(body.stage);
@@ -63,7 +63,7 @@ export async function PUT(req: Request, { params }: Params) {
 /** DELETE /api/applications/:id — removes the application (history & interviews cascade) */
 export async function DELETE(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "applications", "edit");
     const { id } = await params;
     const existing = await db.application.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Application not found");

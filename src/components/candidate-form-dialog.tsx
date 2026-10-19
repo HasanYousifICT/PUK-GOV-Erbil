@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Candidate, ParseResumeResult, apiClient } from "@/lib/client";
 import { CustomFieldInput, useCandidateFields, useCandidateSections } from "@/components/candidate-fields";
+import { PhotoPicker } from "@/components/photo-picker";
 import { CustomData, fieldLabel, groupFields, isFieldVisible, isEmptyValue, isPersonalSection, parseCustomData, sectionLabel } from "@/lib/candidate-fields";
 
 import { useI18n } from "@/lib/i18n";
@@ -34,7 +35,7 @@ const BLANK = {
   tags: "",
 };
 
-export type CandidateFormValues = typeof BLANK & { resume: string; resumeName: string };
+export type CandidateFormValues = typeof BLANK & { resume: string; resumeName: string; photo: string };
 
 export function CandidateFormDialog({
   open,
@@ -51,7 +52,7 @@ export function CandidateFormDialog({
   const { fields } = useCandidateFields();
   const { sections } = useCandidateSections();
   const [custom, setCustom] = useState<CustomData>({});
-  const [form, setForm] = useState<CandidateFormValues>({ ...BLANK, resume: "", resumeName: "" });
+  const [form, setForm] = useState<CandidateFormValues>({ ...BLANK, resume: "", resumeName: "", photo: "" });
   const [uploading, setUploading] = useState(false);
   const [parseNote, setParseNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -79,6 +80,7 @@ export function CandidateFormDialog({
         tags: candidate?.tags ?? "",
         resume: candidate?.resume ?? "",
         resumeName: candidate?.resumeName ?? "",
+        photo: candidate?.photo ?? "",
       });
     }
   }, [open, candidate]);
@@ -269,6 +271,9 @@ export function CandidateFormDialog({
                 <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
                   <p className="text-sm font-medium">{t("Personal information")}</p>
                   <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <PhotoPicker value={form.photo} upload={(f) => apiClient.uploadFile(f, "photo")} onChange={(k) => setForm((x) => ({ ...x, photo: k }))} />
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="cand-name">{t("Full Name *")}</Label>
                       <Input id="cand-name" value={form.name} onChange={(e) => set("name")(e.target.value)} required />

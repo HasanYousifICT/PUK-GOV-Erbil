@@ -16,6 +16,12 @@ model User {
   email     String   @unique
   password  String
   role      String   @default("recruiter") // admin | recruiter
+  phone     String?  // as typed (cleaned)
+  phoneKey  String?  @unique // canonical phone digits: guarantees one account per phone number
+  title     String   @default("") // job title / assigned task shown in the users list
+  permissions String @default("") // JSON {area: "none"|"view"|"edit"}; empty = defaults of the role
+  active    Boolean  @default(true)
+  lastLoginAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -62,6 +68,7 @@ model Candidate {
   phone        String   @default("")
   resume       String   @default("") // storage key of uploaded file (local storage key)
   resumeName   String   @default("") // original file name for display/download
+  photo        String   @default("") // storage key of the personal photo (shown on the CV)
   skills       String   @default("") // comma-separated
   experience   String   @default("") // e.g. "3 years" / free text
   education    String   @default("")
@@ -160,6 +167,10 @@ model CandidateAccount {
   code         String   @unique // unique candidate code, shown read-only on the application form
   fullName     String   @default("") // optional: pre-fills the application form
   email        String   @default("") // optional: pre-fills the application form
+  phone        String?  // as typed (cleaned); required for new accounts
+  phoneKey     String?  @unique // canonical phone digits: one access per phone number
+  draft        String   @default("") // JSON: saved, not yet submitted application form
+  draftAt      DateTime?
   candidateId  String?  @unique // set once the candidate has submitted the application
   submittedAt  DateTime?
   createdAt    DateTime @default(now())

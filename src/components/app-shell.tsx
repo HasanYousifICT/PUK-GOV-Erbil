@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ConfirmDialog } from "@/components/shared";
 import { apiClient, SessionUser } from "@/lib/client";
+import { Area, can } from "@/lib/permissions";
+import { PermissionsProvider } from "@/lib/permissions-context";
 import { useOrg } from "@/lib/org-context";
 import { cn } from "@/lib/utils";
 import { DashboardView } from "@/components/dashboard-view";
@@ -25,7 +27,7 @@ import { JobsView, JobDetailView } from "@/components/jobs-view";
 import { CandidatesView, CandidateDetailView } from "@/components/candidates-view";
 import { ApplicationsView } from "@/components/applications-view";
 import { InterviewsView } from "@/components/interviews-view";
-import { SETTINGS_TABS, SettingsTab, SettingsView } from "@/components/settings-view";
+import { settingsTabAllowed, SETTINGS_TABS, SettingsTab, SettingsView } from "@/components/settings-view";
 import { ClassificationView } from "@/components/classification-view";
 
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
@@ -40,28 +42,28 @@ export type NavState =
   | { view: "classification" }
   | { view: "settings"; tab?: SettingsTab };
 
-type NavItem = { view: NavState["view"]; label: string; icon: typeof LayoutDashboard };
+type NavItem = { view: NavState["view"]; label: string; icon: typeof LayoutDashboard; area?: Area };
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "Recruitment",
     items: [
       { view: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { view: "jobs", label: "Jobs", icon: Briefcase },
-      { view: "candidates", label: "Candidates", icon: Users },
-      { view: "applications", label: "Applications", icon: ClipboardList },
-      { view: "interviews", label: "Interviews", icon: CalendarDays },
+      { view: "jobs", label: "Jobs", icon: Briefcase, area: "jobs" },
+      { view: "candidates", label: "Candidates", icon: Users, area: "candidates" },
+      { view: "applications", label: "Applications", icon: ClipboardList, area: "applications" },
+      { view: "interviews", label: "Interviews", icon: CalendarDays, area: "interviews" },
     ],
   },
-  { title: "Setup", items: [{ view: "classification", label: "Classification", icon: Layers }] },
+  { title: "Setup", items: [{ view: "classification", label: "Classification", icon: Layers, area: "classification" }] },
 ];
 
 function SidebarContent({
   nav,
-  isAdmin,
+  user,
   onNavigate,
 }: {
   nav: NavState;
-  isAdmin: boolean;
+  user: SessionUser;
   onNavigate: (state: NavState) => void;
 }) {
   const { t } = useI18n();
@@ -70,7 +72,7 @@ function SidebarContent({
   const activeTab: SettingsTab = nav.view === "settings" ? nav.tab ?? "profile" : "profile";
   const [settingsOpen, setSettingsOpen] = useState(activeView === "settings");
   const open = settingsOpen || activeView === "settings";
-  const tabs = SETTINGS_TABS.filter((x) => !x.admin || isAdmin);
+  const tabs = SETTINGS_TABS.filter((x) => settingsTabAllowed(x, user));
 
   const itemClass = (active: boolean) =>
     cn(
@@ -96,7 +98,9 @@ function SidebarContent({
 
       {/* Nav (scrolls when the menu is long; leaves room for the user bar) */}
       <nav className="thin-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-3 pb-20 pt-2" aria-label={t("Main navigation")}>
-        {NAV_GROUPS.map((group) => (
+        {NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter((i) => !i.area || can(user.permissions, i.area, "view")) }))
+          .filter((group) => group.items.length > 0)
+          .map((group) => (
           <div key={group.title} className="space-y-1">
             <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">{t(group.title)}</p>
             {group.items.map(({ view, label, icon: Icon }) => {
@@ -198,10 +202,11 @@ export function AppShell({
   const activeView = nav.view;
 
   return (
+    <PermissionsProvider value={user.permissions}>
     <div className="min-h-screen bg-background">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 start-0 z-30 hidden w-64 border-e border-sidebar-border bg-sidebar lg:block">
-        <SidebarContent nav={nav} isAdmin={user.role === "admin"} onNavigate={navigate} />
+        <SidebarContent nav={nav} user={user} onNavigate={navigate} />
       </aside>
 
       {/* Mobile top bar */}
@@ -220,7 +225,7 @@ export function AppShell({
             <SheetHeader className="sr-only">
               <SheetTitle>{t("Navigation")}</SheetTitle>
             </SheetHeader>
-            <SidebarContent nav={nav} isAdmin={user.role === "admin"} onNavigate={navigate} />
+            <SidebarContent nav={nav} user={user} onNavigate={navigate} />
           </SheetContent>
         </Sheet>
       </header>
@@ -301,5 +306,6 @@ export function AppShell({
         busy={logoutBusy}
       />
     </div>
+    </PermissionsProvider>
   );
 }

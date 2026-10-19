@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiClient, SessionUser } from "@/lib/client";
+import { Area, can } from "@/lib/permissions";
 import { PageHeader } from "@/components/shared";
 import { CandidateFieldsSettings } from "@/components/candidate-fields";
 import { OrganizationSettings, UsersSettings } from "@/components/admin-settings";
@@ -17,14 +18,20 @@ import { useI18n } from "@/lib/i18n";
 export type SettingsTab = "profile" | "organization" | "users" | "access" | "fields" | "cv";
 
 /** Sub-pages of Settings (shown as a submenu in the sidebar). `admin` ones are for administrators only. */
-export const SETTINGS_TABS: { tab: SettingsTab; label: string; description: string; icon: LucideIcon; admin: boolean }[] = [
+export const SETTINGS_TABS: { tab: SettingsTab; label: string; description: string; icon: LucideIcon; admin: boolean; area?: Area }[] = [
   { tab: "profile", label: "My account", description: "Your name and password.", icon: UserCog, admin: false },
   { tab: "organization", label: "Organization", description: "Name, logo and details shown across the system.", icon: Building2, admin: true },
   { tab: "users", label: "Users", description: "Staff accounts and their roles.", icon: Users, admin: true },
-  { tab: "access", label: "Candidate access", description: "Logins and unique codes for candidates.", icon: UsersRound, admin: true },
+  { tab: "access", label: "Candidate access", description: "Logins and unique codes for candidates.", icon: UsersRound, admin: true, area: "access" },
   { tab: "fields", label: "Profile fields", description: "Sections and fields of the candidate profile and form.", icon: ListChecks, admin: true },
   { tab: "cv", label: "CV design", description: "How candidate CVs look.", icon: Palette, admin: true },
 ];
+
+/** Administrators see every tab; others see "My account" and the tabs their permissions open. */
+export function settingsTabAllowed(x: (typeof SETTINGS_TABS)[number], user: SessionUser): boolean {
+  if (!x.admin || user.role === "admin") return true;
+  return !!x.area && can(user.permissions, x.area, "view");
+}
 
 export function SettingsView({
   user,
@@ -36,7 +43,7 @@ export function SettingsView({
   tab?: SettingsTab;
 }) {
   const { t } = useI18n();
-  const current = SETTINGS_TABS.find((x) => x.tab === tab && (!x.admin || user.role === "admin")) ?? SETTINGS_TABS[0];
+  const current = SETTINGS_TABS.find((x) => x.tab === tab && settingsTabAllowed(x, user)) ?? SETTINGS_TABS[0];
   tab = current.tab;
   const [name, setName] = useState(user.name);
   const [nameBusy, setNameBusy] = useState(false);
@@ -176,11 +183,11 @@ export function SettingsView({
 
       )}
 
+      {tab === "access" && settingsTabAllowed(current, user) && <CandidateAccessSettings canEdit={can(user.permissions, "access", "edit")} />}
       {user.role === "admin" && (
         <>
           {tab === "organization" && <OrganizationSettings />}
           {tab === "users" && <UsersSettings me={user} />}
-          {tab === "access" && <CandidateAccessSettings />}
           {tab === "fields" && <CandidateFieldsSettings />}
           {tab === "cv" && <CvDesignSettings />}
         </>

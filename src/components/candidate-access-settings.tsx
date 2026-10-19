@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Check, Copy, KeyRound, Loader2, MoreHorizontal, Palette, Printer, Trash2, UserPlus, UsersRound, Wand2 } from "lucide-react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { Check, Copy, KeyRound, Loader2, MoreHorizontal, Palette, Phone, Printer, Search, Trash2, UserPlus, UsersRound, Wand2, X } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog, ErrorState, formatDate, TableSkeleton } from "@/components/shared";
 import { CvDocument, STANDARD_BLOCKS } from "@/components/cv-document";
 import { useCandidateFields, useCandidateSections } from "@/components/candidate-fields";
-import { apiClient, Candidate, CandidateAccount, CvDesign } from "@/lib/client";
+import { ApiClientError, apiClient, Candidate, CandidateAccount, CvDesign, DuplicateAccount } from "@/lib/client";
 import { CustomData, sectionLabel } from "@/lib/candidate-fields";
 import { useI18n } from "@/lib/i18n";
 import { useOrg } from "@/lib/org-context";
@@ -55,14 +55,26 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 type Created = { username: string; password: string; code: string };
 
-function AccountDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
+function AccountDialog({
+  open,
+  onClose,
+  onSaved,
+  onOpenDetails,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+  onOpenDetails: (id: string) => void;
+}) {
   const { t } = useI18n();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState<DuplicateAccount | null>(null);
   const [created, setCreated] = useState<Created | null>(null);
 
   useEffect(() => {
@@ -71,20 +83,25 @@ function AccountDialog({ open, onClose, onSaved }: { open: boolean; onClose: () 
     setPassword(randomPassword());
     setFullName("");
     setEmail("");
+    setPhone("");
     setError(null);
+    setDuplicate(null);
     setCreated(null);
   }, [open]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setDuplicate(null);
+    if (!phone.trim()) return setError("Phone number is required");
     setBusy(true);
     try {
-      const a = await apiClient.createCandidateAccount({ username, password, fullName, email });
+      const a = await apiClient.createCandidateAccount({ username, password, phone, fullName, email });
       setCreated({ username: a.username, password, code: a.code });
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
+      if (err instanceof ApiClientError && err.data?.duplicate) setDuplicate(err.data.duplicate as DuplicateAccount);
     } finally {
       setBusy(false);
     }
@@ -144,6 +161,11 @@ function AccountDialog({ open, onClose, onSaved }: { open: boolean; onClose: () 
                 </Button>
               </div>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="ca-phone">{t("Phone")} *</Label>
+              <Input id="ca-phone" type="tel" dir="ltr" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+964 750 000 0000" />
+              <p className="text-xs text-muted-foreground">{t("Each phone number can be used for one candidate access only.")}</p>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="ca-name">{t("Candidate name (optional)")}</Label>
@@ -154,9 +176,28 @@ function AccountDialog({ open, onClose, onSaved }: { open: boolean; onClose: () 
                 <Input id="ca-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
             </div>
-            {error && (
+            {error && !duplicate && (
               <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {t(error)}
+              </div>
+            )}
+            {duplicate && (
+              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <p className="font-semibold">{t("Candidate duplicate")}</p>
+                <p className="mt-0.5">{t("This phone number already belongs to another candidate access.")}</p>
+                <button
+                  type="button"
+                  className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-md bg-white/70 px-2 py-1 text-start font-medium text-red-800 underline underline-offset-2 hover:bg-white"
+                  onClick={() => {
+                    onClose();
+                    onOpenDetails(duplicate.id);
+                  }}
+                >
+                  <span dir="ltr">{duplicate.username}</span>
+                  {duplicate.fullName && <span dir="auto">· {duplicate.fullName}</span>}
+                  <span dir="ltr">· {duplicate.phone}</span>
+                  <span>— {t("Open details")}</span>
+                </button>
               </div>
             )}
             <DialogFooter>
@@ -242,7 +283,170 @@ function ResetDialog({ account, onClose }: { account: CandidateAccount | null; o
   );
 }
 
-export function CandidateAccessSettings() {
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 break-words text-sm">{children}</dd>
+    </div>
+  );
+}
+
+/** Everything about one candidate access: details, edit name/phone/e-mail, reset password, delete. */
+function AccountDetailsDialog({
+  account,
+  canEdit,
+  onClose,
+  onChanged,
+  onReset,
+  onDelete,
+  onOpenOther,
+}: {
+  account: CandidateAccount | null;
+  canEdit: boolean;
+  onClose: () => void;
+  onChanged: () => void;
+  onReset: (a: CandidateAccount) => void;
+  onDelete: (a: CandidateAccount) => void;
+  onOpenOther: (id: string) => void;
+}) {
+  const { t } = useI18n();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState<DuplicateAccount | null>(null);
+
+  useEffect(() => {
+    if (!account) return;
+    setFullName(account.fullName);
+    setEmail(account.email);
+    setPhone(account.phone ?? "");
+    setError(null);
+    setDuplicate(null);
+  }, [account]);
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (!account) return;
+    setError(null);
+    setDuplicate(null);
+    setBusy(true);
+    try {
+      await apiClient.updateCandidateAccount(account.id, { fullName, email, phone });
+      toast.success("Saved");
+      onChanged();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+      if (err instanceof ApiClientError && err.data?.duplicate) setDuplicate(err.data.duplicate as DuplicateAccount);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const a = account;
+  const status = a ? (a.candidateId ? "Submitted" : a.draftAt ? "Draft saved" : "Waiting") : "";
+  return (
+    <Dialog open={!!a} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t("Candidate access details")}</DialogTitle>
+          <DialogDescription dir="ltr" className="text-start">
+            {a?.username}
+          </DialogDescription>
+        </DialogHeader>
+        {a && (
+          <form onSubmit={save} className="space-y-4" noValidate>
+            <dl className="grid gap-3 rounded-lg border bg-muted/30 p-3 sm:grid-cols-2">
+              <Fact label={t("Username")}>
+                <span dir="ltr">{a.username}</span>
+              </Fact>
+              <Fact label={t("Candidate code")}>
+                <span className="inline-flex items-center gap-1 font-mono" dir="ltr">
+                  {a.code}
+                  <CopyButton text={a.code} label={t("Copy")} />
+                </span>
+              </Fact>
+              <Fact label={t("Status")}>
+                <Badge variant={a.candidateId ? "default" : "secondary"} className="font-normal">
+                  {t(status)}
+                </Badge>
+              </Fact>
+              <Fact label={t("Created")}>{formatDate(a.createdAt)}</Fact>
+              {a.submittedAt && <Fact label={t("Submitted")}>{formatDate(a.submittedAt)}</Fact>}
+              {a.draftAt && !a.candidateId && <Fact label={t("Draft saved")}>{formatDate(a.draftAt)}</Fact>}
+            </dl>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="cd-name">{t("Candidate name (optional)")}</Label>
+                <Input id="cd-name" value={fullName} onChange={(e) => setFullName(e.target.value)} disabled={!canEdit} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cd-phone">{t("Phone")} *</Label>
+                <Input id="cd-phone" type="tel" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!canEdit} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="cd-email">{t("Email (optional)")}</Label>
+                <Input id="cd-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!canEdit} />
+              </div>
+            </div>
+            {error && !duplicate && (
+              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {t(error)}
+              </div>
+            )}
+            {duplicate && (
+              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <p className="font-semibold">{t("Candidate duplicate")}</p>
+                <button
+                  type="button"
+                  className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-md bg-white/70 px-2 py-1 text-start font-medium text-red-800 underline underline-offset-2 hover:bg-white"
+                  onClick={() => onOpenOther(duplicate.id)}
+                >
+                  <span dir="ltr">{duplicate.username}</span>
+                  {duplicate.fullName && <span dir="auto">· {duplicate.fullName}</span>}
+                  <span dir="ltr">· {duplicate.phone}</span>
+                  <span>— {t("Open details")}</span>
+                </button>
+              </div>
+            )}
+            <DialogFooter className="gap-2 sm:justify-between">
+              {canEdit ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" onClick={() => onReset(a)}>
+                    <KeyRound className="me-1.5 h-4 w-4" /> {t("Reset password")}
+                  </Button>
+                  <Button type="button" variant="outline" className="text-red-600 hover:text-red-700" onClick={() => onDelete(a)}>
+                    <Trash2 className="me-1.5 h-4 w-4" /> {t("Delete")}
+                  </Button>
+                </div>
+              ) : (
+                <span />
+              )}
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={onClose}>
+                  {t("Close")}
+                </Button>
+                {canEdit && (
+                  <Button type="submit" disabled={busy}>
+                    {busy && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+                    {t("Save")}
+                  </Button>
+                )}
+              </div>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type StatusFilter = "all" | "Submitted" | "Waiting" | "Draft saved";
+
+export function CandidateAccessSettings({ canEdit = true }: { canEdit?: boolean }) {
   const { t } = useI18n();
   const [rows, setRows] = useState<CandidateAccount[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -250,6 +454,10 @@ export function CandidateAccessSettings() {
   const [resetting, setResetting] = useState<CandidateAccount | null>(null);
   const [deleting, setDeleting] = useState<CandidateAccount | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [phoneFilter, setPhoneFilter] = useState<"all" | "with" | "without">("all");
 
   async function load() {
     try {
@@ -263,6 +471,25 @@ export function CandidateAccessSettings() {
     load();
   }, []);
 
+  const statusOf = (a: CandidateAccount): StatusFilter => (a.candidateId ? "Submitted" : a.draftAt ? "Draft saved" : "Waiting");
+
+  const shown = useMemo(() => {
+    if (!rows) return [];
+    const q = search.trim().toLowerCase();
+    const qDigits = q.replace(/\D/g, "");
+    return rows.filter((a) => {
+      if (status !== "all" && statusOf(a) !== status) return false;
+      if (phoneFilter === "with" && !a.phone) return false;
+      if (phoneFilter === "without" && a.phone) return false;
+      if (!q) return true;
+      if ([a.username, a.fullName, a.code, a.email, a.phone ?? ""].some((v) => v.toLowerCase().includes(q))) return true;
+      return qDigits.length >= 3 && (a.phone ?? "").replace(/\D/g, "").includes(qDigits);
+    });
+  }, [rows, search, status, phoneFilter]);
+
+  const filtering = search.trim() !== "" || status !== "all" || phoneFilter !== "all";
+  const details = rows?.find((a) => a.id === detailsId) ?? null;
+
   async function remove() {
     if (!deleting) return;
     setDeleteBusy(true);
@@ -270,6 +497,7 @@ export function CandidateAccessSettings() {
       await apiClient.deleteCandidateAccount(deleting.id);
       toast.success("Candidate access deleted");
       setDeleting(null);
+      setDetailsId(null);
       load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not delete");
@@ -290,13 +518,67 @@ export function CandidateAccessSettings() {
             {t("Create a username and password for each candidate. Each one gets a unique code. The candidate signs in from the first page, fills in the application and then sees their CV.")}
           </p>
         </div>
-        <Button onClick={() => setAdding(true)}>
-          <UserPlus className="me-2 h-4 w-4" />
-          {t("Add candidate access")}
-        </Button>
+        {canEdit && (
+          <Button onClick={() => setAdding(true)}>
+            <UserPlus className="me-2 h-4 w-4" />
+            {t("Add candidate access")}
+          </Button>
+        )}
       </div>
 
-      <div className="mt-4">
+      {rows && rows.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="relative min-w-56 flex-1">
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("Search by name, username, code or phone")}
+              aria-label={t("Search by name, username, code or phone")}
+              className="ps-9"
+            />
+          </div>
+          <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
+            <SelectTrigger className="w-44" aria-label={t("Status")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("All statuses")}</SelectItem>
+              <SelectItem value="Submitted">{t("Submitted")}</SelectItem>
+              <SelectItem value="Draft saved">{t("Draft saved")}</SelectItem>
+              <SelectItem value="Waiting">{t("Waiting")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={phoneFilter} onValueChange={(v) => setPhoneFilter(v as typeof phoneFilter)}>
+            <SelectTrigger className="w-44" aria-label={t("Phone")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("Any phone")}</SelectItem>
+              <SelectItem value="with">{t("Has a phone number")}</SelectItem>
+              <SelectItem value="without">{t("No phone number yet")}</SelectItem>
+            </SelectContent>
+          </Select>
+          {filtering && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearch("");
+                setStatus("all");
+                setPhoneFilter("all");
+              }}
+            >
+              <X className="me-1 h-4 w-4" /> {t("Clear filters")}
+            </Button>
+          )}
+        </div>
+      )}
+      {rows && rows.length > 0 && (
+        <p className="mt-2 text-xs text-muted-foreground">{t("Showing {n} of {total}", { n: shown.length, total: rows.length })}</p>
+      )}
+
+      <div className="mt-3">
         {error && <ErrorState message={error} onRetry={load} />}
         {!rows && !error && <TableSkeleton rows={3} />}
         {rows && rows.length === 0 && (
@@ -304,23 +586,32 @@ export function CandidateAccessSettings() {
             {t("No candidate access yet. Click “Add candidate access” to create the first one.")}
           </p>
         )}
-        {rows && rows.length > 0 && (
+        {rows && rows.length > 0 && shown.length === 0 && (
+          <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">{t("Nothing matches your search.")}</p>
+        )}
+        {shown.length > 0 && (
           <ul className="divide-y rounded-lg border">
-            {rows.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
-                <div className="min-w-0 flex-1">
+            {shown.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5 hover:bg-muted/30">
+                <button type="button" className="min-w-0 flex-1 text-start" onClick={() => setDetailsId(a.id)} aria-label={t("Open details")}>
                   <p className="truncate text-sm font-medium" dir="ltr">
                     {a.username}
                     {a.fullName && <span className="ms-2 font-normal text-muted-foreground" dir="auto">{a.fullName}</span>}
                   </p>
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground" dir="ltr">
+                  <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground" dir="ltr">
                     <span className="font-mono">{a.code}</span>
-                    <CopyButton text={a.code} label={t("Copy")} />
-                    · {formatDate(a.createdAt)}
+                    {a.phone && (
+                      <span className="inline-flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {a.phone}
+                      </span>
+                    )}
+                    <span>{formatDate(a.createdAt)}</span>
                   </p>
-                </div>
+                </button>
+                <CopyButton text={a.code} label={t("Copy")} />
                 <Badge variant={a.candidateId ? "default" : "secondary"} className="font-normal">
-                  {a.candidateId ? t("Submitted") : t("Waiting")}
+                  {t(statusOf(a))}
                 </Badge>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -329,13 +620,20 @@ export function CandidateAccessSettings() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setResetting(a)}>
-                      <KeyRound className="me-2 h-4 w-4" /> {t("Reset password")}
+                    <DropdownMenuItem onClick={() => setDetailsId(a.id)}>
+                      <UsersRound className="me-2 h-4 w-4" /> {t("Open details")}
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleting(a)}>
-                      <Trash2 className="me-2 h-4 w-4" /> {t("Delete")}
-                    </DropdownMenuItem>
+                    {canEdit && (
+                      <>
+                        <DropdownMenuItem onClick={() => setResetting(a)}>
+                          <KeyRound className="me-2 h-4 w-4" /> {t("Reset password")}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleting(a)}>
+                          <Trash2 className="me-2 h-4 w-4" /> {t("Delete")}
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </li>
@@ -344,7 +642,22 @@ export function CandidateAccessSettings() {
         )}
       </div>
 
-      <AccountDialog open={adding} onClose={() => setAdding(false)} onSaved={load} />
+      <AccountDialog open={adding} onClose={() => setAdding(false)} onSaved={load} onOpenDetails={setDetailsId} />
+      <AccountDetailsDialog
+        account={details}
+        canEdit={canEdit}
+        onClose={() => setDetailsId(null)}
+        onChanged={load}
+        onReset={(a) => {
+          setDetailsId(null);
+          setResetting(a);
+        }}
+        onDelete={(a) => {
+          setDetailsId(null);
+          setDeleting(a);
+        }}
+        onOpenOther={setDetailsId}
+      />
       <ResetDialog account={resetting} onClose={() => setResetting(null)} />
       <ConfirmDialog
         open={!!deleting}
@@ -378,6 +691,7 @@ const SAMPLE: Candidate = {
   phone: "+964 750 000 0000",
   resume: "",
   resumeName: "",
+  photo: "",
   skills: "",
   experience: "",
   education: "",

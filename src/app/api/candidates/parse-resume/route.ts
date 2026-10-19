@@ -1,6 +1,6 @@
 import { getStorage } from "@/lib/storage";
 import { getResumeParser } from "@/lib/resume-parser";
-import { ApiError, handle, json, requireAuth } from "@/lib/api";
+import { ApiError, handle, json, requireAuth, requireLevel } from "@/lib/api";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED = [".pdf", ".doc", ".docx"];
@@ -13,7 +13,7 @@ const ALLOWED = [".pdf", ".doc", ".docx"];
  */
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "candidates", "edit");
 
     const form = await req.formData().catch(() => null);
     if (!form) throw new ApiError(400, "Expected multipart/form-data");

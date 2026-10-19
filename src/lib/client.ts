@@ -4,9 +4,19 @@ import type { JobCategory } from "@/lib/categories";
 import type { CandidateField, CandidateSection, CustomData, FieldType, FileValue, ShowIf } from "@/lib/candidate-fields";
 import type { CandidateFilters } from "@/lib/candidate-filters";
 
-export type SessionUser = { id: string; name: string; email: string; role: "admin" | "recruiter" };
+import type { Permissions } from "@/lib/permissions";
 
-export type ManagedUser = SessionUser & { createdAt: string };
+export type SessionUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "recruiter";
+  phone: string;
+  title: string;
+  permissions: Permissions;
+};
+
+export type ManagedUser = SessionUser & { active: boolean; lastLoginAt: string | null; createdAt: string };
 
 export type Org = {
   name: string;
@@ -26,9 +36,25 @@ export type CandidateAccount = {
   code: string;
   fullName: string;
   email: string;
+  phone: string | null;
   candidateId: string | null;
   submittedAt: string | null;
+  draftAt: string | null;
   createdAt: string;
+};
+
+/** The half-filled application a candidate saved. */
+export type PortalDraft = {
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  notes: string;
+  jobId: string;
+  resume: string;
+  resumeName: string;
+  photo: string;
+  customData: CustomData;
 };
 
 export type CvDesign = {
@@ -45,7 +71,8 @@ export type CvDesign = {
 export type PortalJob = { id: string; title: string; location: string; employmentType: string };
 
 export type PortalData = {
-  account: { username: string; code: string; fullName: string; email: string };
+  account: { username: string; code: string; fullName: string; email: string; phone: string; draftAt: string | null };
+  draft: PortalDraft | null;
   submitted: boolean;
   candidate: Candidate | null;
   jobs: PortalJob[];
@@ -79,6 +106,7 @@ export type Candidate = {
   phone: string;
   resume: string;
   resumeName: string;
+  photo: string; // storage key of the personal photo
   skills: string;
   experience: string;
   education: string;
@@ -206,7 +234,14 @@ export type ParseResumeResult = {
 
 /* ------------------------------- API client ------------------------------- */
 
-export class ApiClientError extends Error {}
+export class ApiClientError extends Error {
+  /** Extra data sent with the error (for example `duplicate` for a repeated phone number). */
+  constructor(message: string, public data?: Record<string, unknown>) {
+    super(message);
+  }
+}
+
+export type DuplicateAccount = { id: string; username: string; fullName: string; phone: string };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -219,13 +254,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
+    let extra: Record<string, unknown> | undefined;
     try {
       const data = await res.json();
       if (data?.error) message = data.error;
+      extra = data;
     } catch {
       // ignore
     }
-    throw new ApiClientError(message);
+    throw new ApiClientError(message, extra);
   }
   return res.json() as Promise<T>;
 }
@@ -320,9 +357,10 @@ export const apiClient = {
     api<{ ok: boolean }>("/api/candidate-fields/reorder", { method: "PUT", body: JSON.stringify({ ids }) }),
   importBoardPreset: () =>
     api<{ sections: number; fields: number; skipped: number; removedSections: number }>("/api/candidate-fields/preset", { method: "POST" }),
-  uploadFile: (file: File) => {
+  uploadFile: (file: File, kind?: "photo") => {
     const form = new FormData();
     form.append("file", file);
+    if (kind) form.append("kind", kind);
     return api<FileValue & { size: number }>("/api/files", { method: "POST", body: form });
   },
 
@@ -339,17 +377,36 @@ export const apiClient = {
 
   /* users (administrators) */
   listUsers: () => api<ManagedUser[]>("/api/users"),
-  createUser: (data: { name: string; email: string; password: string; role: "admin" | "recruiter" }) =>
-    api<ManagedUser>("/api/users", { method: "POST", body: JSON.stringify(data) }),
-  updateUser: (id: string, data: { name?: string; role?: "admin" | "recruiter"; password?: string }) =>
+  createUser: (data: {
+    name: string;
+    email: string;
+    phone: string;
+    title?: string;
+    password: string;
+    role: "admin" | "recruiter";
+    permissions?: Permissions;
+  }) => api<ManagedUser>("/api/users", { method: "POST", body: JSON.stringify(data) }),
+  updateUser: (
+    id: string,
+    data: {
+      name?: string;
+      phone?: string;
+      title?: string;
+      role?: "admin" | "recruiter";
+      permissions?: Permissions;
+      active?: boolean;
+      password?: string;
+    }
+  ) =>
     api<ManagedUser>(`/api/users/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteUser: (id: string) => api<{ ok: boolean }>(`/api/users/${id}`, { method: "DELETE" }),
 
   /* candidate accounts (administrators) */
   listCandidateAccounts: () => api<CandidateAccount[]>("/api/candidate-accounts"),
-  createCandidateAccount: (data: { username: string; password: string; fullName?: string; email?: string }) =>
+  getCandidateAccount: (id: string) => api<CandidateAccount>(`/api/candidate-accounts/${id}`),
+  createCandidateAccount: (data: { username: string; password: string; phone: string; fullName?: string; email?: string }) =>
     api<CandidateAccount>("/api/candidate-accounts", { method: "POST", body: JSON.stringify(data) }),
-  updateCandidateAccount: (id: string, data: { password?: string; fullName?: string; email?: string }) =>
+  updateCandidateAccount: (id: string, data: { password?: string; fullName?: string; email?: string; phone?: string }) =>
     api<CandidateAccount>(`/api/candidate-accounts/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteCandidateAccount: (id: string) => api<{ ok: boolean }>(`/api/candidate-accounts/${id}`, { method: "DELETE" }),
 
@@ -362,7 +419,11 @@ export const apiClient = {
     api<{ ok: boolean }>("/api/candidate/login", { method: "POST", body: JSON.stringify({ username, password }) }),
   candidateLogout: () => api<{ ok: boolean }>("/api/candidate/logout", { method: "POST" }),
   candidatePortal: () => api<PortalData>("/api/candidate/portal"),
-  candidateUpload: (file: File, kind: "resume" | "attachment") => {
+  candidateSaveDraft: (data: Record<string, unknown>) =>
+    api<{ ok: boolean; savedAt: string }>("/api/candidate/draft", { method: "PUT", body: JSON.stringify(data) }),
+  candidateUpdateProfile: (data: Record<string, unknown>) =>
+    api<{ ok: boolean; candidate: Candidate }>("/api/candidate/profile", { method: "PUT", body: JSON.stringify(data) }),
+  candidateUpload: (file: File, kind: "resume" | "attachment" | "photo") => {
     const form = new FormData();
     form.append("file", file);
     form.append("kind", kind);
@@ -376,7 +437,7 @@ export const apiClient = {
     api<{ jobs: { id: string; title: string; location: string; employmentType: string }[]; fields: CandidateField[]; sections: CandidateSection[] }>(
       "/api/public/form"
     ),
-  publicUpload: (file: File, kind: "resume" | "attachment") => {
+  publicUpload: (file: File, kind: "resume" | "attachment" | "photo") => {
     const form = new FormData();
     form.append("file", file);
     form.append("kind", kind);

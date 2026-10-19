@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { parseCustomData } from "@/lib/candidate-fields";
 import { deleteFiles, fileKeysOf, loadFields, validateCustomData } from "@/lib/candidate-custom";
 
@@ -8,7 +8,7 @@ type Params = { params: Promise<{ id: string }> };
 /** GET /api/candidates/:id — full profile with applications (+jobs) and interviews */
 export async function GET(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "candidates", "view");
     const { id } = await params;
     const candidate = await db.candidate.findUnique({
       where: { id },
@@ -32,7 +32,7 @@ export async function GET(req: Request, { params }: Params) {
 /** PUT /api/candidates/:id — update profile (incl. resume replace) */
 export async function PUT(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "candidates", "edit");
     const { id } = await params;
     const body = await readJson<Record<string, unknown>>(req);
     const existing = await db.candidate.findUnique({ where: { id } });
@@ -51,6 +51,11 @@ export async function PUT(req: Request, { params }: Params) {
         if (dup) throw new ApiError(409, "A candidate with this email already exists");
       }
       data.email = email;
+    }
+    if ("photo" in body) {
+      const k = str(body.photo);
+      if (k && (!k.startsWith("photos/") || k.includes(".."))) throw new ApiError(400, "Invalid photo");
+      data.photo = k;
     }
     for (const key of [
       "phone", "resume", "resumeName", "skills", "experience", "education",
@@ -74,6 +79,7 @@ export async function PUT(req: Request, { params }: Params) {
       include: { _count: { select: { applications: true } } },
     });
     await deleteFiles(removedFiles);
+    if (data.photo !== undefined && existing.photo && existing.photo !== data.photo) await deleteFiles([existing.photo]);
     return json(candidate);
   });
 }
@@ -81,7 +87,7 @@ export async function PUT(req: Request, { params }: Params) {
 /** DELETE /api/candidates/:id — also removes the stored resume file */
 export async function DELETE(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "candidates", "edit");
     const { id } = await params;
     const existing = await db.candidate.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Candidate not found");
@@ -90,6 +96,7 @@ export async function DELETE(req: Request, { params }: Params) {
       const { getStorage } = await import("@/lib/storage");
       await getStorage().delete(existing.resume);
     }
+    if (existing.photo) await deleteFiles([existing.photo]);
     await deleteFiles(fileKeysOf(existing.customData));
     return json({ ok: true });
   });

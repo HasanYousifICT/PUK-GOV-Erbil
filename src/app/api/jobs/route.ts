@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { EMPLOYMENT_TYPES, JOB_STATUSES } from "@/lib/constants";
 
 /** GET /api/jobs — list all jobs with application counts */
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
 /** POST /api/jobs — create a job */
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "jobs", "edit");
     const body = await readJson<Record<string, unknown>>(req);
     const title = str(body.title).trim();
     if (!title) throw new ApiError(400, "Job title is required");

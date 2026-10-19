@@ -5,6 +5,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { Permissions, resolvePermissions } from "@/lib/permissions";
 
 const COOKIE_NAME = "oroos_session";
 const SESSION_DAYS = 7;
@@ -28,7 +29,28 @@ export type SessionUser = {
   name: string;
   email: string;
   role: "admin" | "recruiter";
+  phone: string;
+  title: string;
+  permissions: Permissions;
 };
+
+type UserRow = { id: string; name: string; email: string; role: string; phone: string | null; title: string; permissions: string };
+
+/** The user as the app sees it (role + resolved permissions). */
+export function toSessionUser(u: UserRow): SessionUser {
+  const role = u.role === "admin" ? "admin" : "recruiter";
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role,
+    phone: u.phone ?? "",
+    title: u.title,
+    permissions: resolvePermissions(role, u.permissions),
+  };
+}
+
+export const SESSION_SELECT = { id: true, name: true, email: true, role: true, phone: true, title: true, permissions: true } as const;
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
@@ -53,9 +75,10 @@ export async function getSessionUserFromToken(token: string | undefined): Promis
     if (!payload.sub) return null;
     const user = await db.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, name: true, email: true, role: true },
+      select: { ...SESSION_SELECT, active: true },
     });
-    return user ? { ...user, role: user.role === "admin" ? "admin" : "recruiter" } : null;
+    // a disabled account is signed out at once
+    return user && user.active ? toSessionUser(user) : null;
   } catch {
     return null;
   }

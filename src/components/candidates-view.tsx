@@ -74,10 +74,12 @@ import {
 } from "@/components/shared";
 
 import { useI18n } from "@/lib/i18n";
+import { useCan } from "@/lib/permissions-context";
 /* ------------------------------- Candidates list ------------------------------ */
 
 export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) => void }) {
   const { t } = useI18n();
+  const canEdit = useCan("candidates", "edit");
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -152,7 +154,7 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
         title={t("Candidates")}
         description={t("Your talent database — add candidates manually or by uploading resumes.")}
         action={
-          <Button
+          !canEdit ? undefined : <Button
             onClick={() => {
               setEditing(null);
               setFormOpen(true);
@@ -402,6 +404,7 @@ export function CandidateDetailView({
   onNavigate: (state: NavState) => void;
 }) {
   const { t } = useI18n();
+  const canEdit = useCan("candidates", "edit");
   const [candidate, setCandidate] = useState<CandidateDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -479,7 +482,11 @@ export function CandidateDetailView({
       <div className="rounded-xl border bg-card p-5 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-4">
-            <Avatar name={candidate.name} className="h-14 w-14 rounded-2xl text-lg" />
+            {candidate.photo ? (
+              <img src={apiClient.resumeUrl(candidate.photo)} alt={candidate.name} className="h-16 w-16 shrink-0 rounded-2xl border object-cover" />
+            ) : (
+              <Avatar name={candidate.name} className="h-14 w-14 rounded-2xl text-lg" />
+            )}
             <div className="min-w-0">
               <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{candidate.name}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
@@ -517,19 +524,23 @@ export function CandidateDetailView({
             <Button variant="outline" onClick={() => setCvOpen(true)}>
               <FileText className="me-2 h-4 w-4" /> {t("View CV")}
             </Button>
-            <Button onClick={() => setAddJobOpen(true)}>
-              <Plus className="me-2 h-4 w-4" /> {t("Add to Job")}
-            </Button>
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="me-2 h-4 w-4" /> {t("Edit")}
-            </Button>
-            <Button
-              variant="outline"
-              className="text-red-600 hover:bg-red-50 hover:text-red-600"
-              onClick={() => setDeleteOpen(true)}
-            >
-              <Trash2 className="me-2 h-4 w-4" /> {t("Delete")}
-            </Button>
+            {canEdit && (
+              <>
+                <Button onClick={() => setAddJobOpen(true)}>
+                  <Plus className="me-2 h-4 w-4" /> {t("Add to Job")}
+                </Button>
+                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                  <Pencil className="me-2 h-4 w-4" /> {t("Edit")}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-red-600 hover:bg-red-50 hover:text-red-600"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 className="me-2 h-4 w-4" /> {t("Delete")}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

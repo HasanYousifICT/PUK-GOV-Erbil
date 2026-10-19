@@ -5,11 +5,13 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 const MAX_SIZE = 8 * 1024 * 1024; // 8 MB
 const RESUME_EXT = [".pdf", ".doc", ".docx"];
+const PHOTO_EXT = [".png", ".jpg", ".jpeg", ".webp"];
+const PHOTO_MAX = 5 * 1024 * 1024; // 5 MB
 const ATTACH_EXT = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt", ".png", ".jpg", ".jpeg"];
 
 /**
  * POST /api/public/upload — anonymous upload for the public application form.
- * multipart: `file`, `kind` = "resume" | "attachment". A resume is also parsed to pre-fill the form.
+ * multipart: `file`, `kind` = "resume" | "attachment" | "photo". A resume is also parsed to pre-fill the form.
  */
 export async function POST(req: Request) {
   return handle(async () => {
@@ -17,7 +19,8 @@ export async function POST(req: Request) {
     const form = await req.formData().catch(() => null);
     if (!form) throw new ApiError(400, "Expected multipart/form-data");
     const file = form.get("file");
-    const kind = form.get("kind") === "resume" ? "resume" : "attachment";
+    const rawKind = form.get("kind");
+    const kind = rawKind === "resume" ? "resume" : rawKind === "photo" ? "photo" : "attachment";
     if (!(file instanceof File)) throw new ApiError(400, "File is required");
     if (file.size === 0) throw new ApiError(400, "File is empty");
     if (file.size > MAX_SIZE) throw new ApiError(400, "File is too large (max 8 MB)");
@@ -25,7 +28,10 @@ export async function POST(req: Request) {
     const filename = file.name || "file";
     const dot = filename.lastIndexOf(".");
     const ext = dot >= 0 ? filename.toLowerCase().slice(dot) : "";
-    if (!(kind === "resume" ? RESUME_EXT : ATTACH_EXT).includes(ext)) {
+    if (kind === "photo") {
+      if (!PHOTO_EXT.includes(ext)) throw new ApiError(400, "The photo must be a PNG, JPG or WebP image");
+      if (file.size > PHOTO_MAX) throw new ApiError(400, "The photo is too large (max 5 MB)");
+    } else if (!(kind === "resume" ? RESUME_EXT : ATTACH_EXT).includes(ext)) {
       throw new ApiError(
         400,
         kind === "resume"
@@ -34,9 +40,9 @@ export async function POST(req: Request) {
       );
     }
     const buffer = Buffer.from(await file.arrayBuffer());
-    const key = await getStorage().save(kind === "resume" ? "resumes" : "attachments", filename, buffer);
+    const key = await getStorage().save(kind === "resume" ? "resumes" : kind === "photo" ? "photos" : "attachments", filename, buffer);
 
-    if (kind === "attachment") return json({ key, name: filename }, 201);
+    if (kind !== "resume") return json({ key, name: filename }, 201);
 
     let parsed = { name: "", email: "", phone: "", skills: "", experience: "", education: "" };
     try {

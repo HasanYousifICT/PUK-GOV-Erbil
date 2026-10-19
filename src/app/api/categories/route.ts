@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { MAX_CATEGORY_DEPTH } from "@/lib/categories";
 import { ensureJobCategories } from "@/lib/job-categories-seed";
 
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
 /** POST /api/categories — add a category (top level, or under `parentId`). */
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "classification", "edit");
     const body = await readJson<Record<string, unknown>>(req);
     const name = str(body.name).trim();
     if (!name) throw new ApiError(400, "Category name is required");

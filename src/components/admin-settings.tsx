@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
-import { Building2, KeyRound, Loader2, MoreHorizontal, Pencil, Plus, Trash2, Upload, UserPlus, Users } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Building2, KeyRound, Loader2, MoreHorizontal, Pencil, Phone, Plus, Search, ShieldCheck, Trash2, Upload, UserCheck, UserPlus, UserX, Users, X } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,10 +23,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog, ErrorState, formatDate, TableSkeleton } from "@/components/shared";
 import { apiClient, ManagedUser, SessionUser } from "@/lib/client";
 import { useI18n } from "@/lib/i18n";
 import { useOrg } from "@/lib/org-context";
+import { AREAS, AREA_INFO, Area, Level, Permissions, presetByKey, presetKeyFor, ROLE_PRESETS } from "@/lib/permissions";
 
 /* ------------------------------ Organization ------------------------------ */
 
@@ -169,49 +171,92 @@ export function OrganizationSettings() {
 
 type UserEdit = { mode: "add" } | { mode: "edit"; user: ManagedUser };
 
+const LEVELS: { value: Level; label: string }[] = [
+  { value: "none", label: "No access" },
+  { value: "view", label: "View only" },
+  { value: "edit", label: "Can edit" },
+];
+
+const EMPTY_PERMS: Permissions = { candidates: "none", jobs: "none", applications: "none", interviews: "none", classification: "none", access: "none" };
+
+function roleLabel(user: Pick<ManagedUser, "role" | "permissions">): string {
+  const key = presetKeyFor(user.role, user.permissions);
+  return key === "custom" ? "Custom role" : presetByKey(key)?.label ?? "Custom role";
+}
+
 function UserDialog({
   editing,
+  me,
   onClose,
   onSaved,
 }: {
   editing: UserEdit | null;
+  me: SessionUser;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { t } = useI18n();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [title, setTitle] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"admin" | "recruiter">("recruiter");
+  const [preset, setPreset] = useState("recruiter");
+  const [perms, setPerms] = useState<Permissions>(EMPTY_PERMS);
+  const [active, setActive] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isAdminRole = preset === "admin";
+  const editingSelf = editing?.mode === "edit" && editing.user.id === me.id;
 
   useEffect(() => {
     if (!editing) return;
     setError(null);
     setPassword("");
     if (editing.mode === "edit") {
-      setName(editing.user.name);
-      setEmail(editing.user.email);
-      setRole(editing.user.role);
+      const u = editing.user;
+      setName(u.name);
+      setEmail(u.email);
+      setPhone(u.phone);
+      setTitle(u.title);
+      setPreset(presetKeyFor(u.role, u.permissions));
+      setPerms(u.permissions);
+      setActive(u.active);
     } else {
       setName("");
       setEmail("");
-      setRole("recruiter");
+      setPhone("");
+      setTitle("");
+      setPreset("recruiter");
+      setPerms({ ...ROLE_PRESETS[1].permissions });
+      setActive(true);
     }
   }, [editing]);
+
+  function pickPreset(key: string) {
+    setPreset(key);
+    const p = presetByKey(key);
+    if (p) setPerms({ ...p.permissions });
+  }
+
+  function setLevel(area: Area, level: Level) {
+    setPerms((p) => ({ ...p, [area]: level }));
+    setPreset("custom");
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!editing) return;
     setBusy(true);
     setError(null);
+    const role = isAdminRole ? "admin" : "recruiter";
     try {
       if (editing.mode === "add") {
-        await apiClient.createUser({ name, email, password, role });
+        await apiClient.createUser({ name, email, phone, title, password, role, permissions: perms });
         toast.success("User added");
       } else {
-        await apiClient.updateUser(editing.user.id, { name, role });
+        await apiClient.updateUser(editing.user.id, { name, phone, title, role, permissions: perms, active });
         toast.success("User updated");
       }
       onSaved();
@@ -225,42 +270,116 @@ function UserDialog({
 
   return (
     <Dialog open={!!editing} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{editing?.mode === "edit" ? t("Edit user") : t("Add user")}</DialogTitle>
           <DialogDescription>
             {editing?.mode === "edit"
-              ? t("Change the name or the role of this user.")
+              ? t("Change the details, the role and what this person is allowed to do.")
               : t("Create an account. Share the email and password with the user; they can change the password in Settings.")}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} className="space-y-4" noValidate>
-          <div className="space-y-2">
-            <Label htmlFor="u-name">{t("Full Name *")}</Label>
-            <Input id="u-name" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="u-email">{t("Email *")}</Label>
-            <Input id="u-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} disabled={editing?.mode === "edit"} />
-          </div>
-          {editing?.mode === "add" && (
+        <form onSubmit={submit} className="space-y-5" noValidate>
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="u-pass">{t("Password *")}</Label>
-              <Input id="u-pass" type="text" dir="ltr" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("At least 6 characters")} />
+              <Label htmlFor="u-name">{t("Full Name *")}</Label>
+              <Input id="u-name" value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="u-phone">{t("Phone")} *</Label>
+              <Input id="u-phone" type="tel" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+964 750 000 0000" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="u-email">{t("Email *")}</Label>
+              <Input id="u-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} disabled={editing?.mode === "edit"} />
+            </div>
+            {editing?.mode === "add" && (
+              <div className="space-y-2">
+                <Label htmlFor="u-pass">{t("Password *")}</Label>
+                <Input id="u-pass" type="text" dir="ltr" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("At least 6 characters")} />
+              </div>
+            )}
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="u-title">{t("Task / responsibility")}</Label>
+              <Input id="u-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("e.g. Interviews for the engineering jobs")} />
+              <p className="text-xs text-muted-foreground">{t("Shown in the users list so everyone knows who does what.")}</p>
+            </div>
+          </div>
+          <p className="-mt-2 text-xs text-muted-foreground">{t("The full name and the phone number must be different for every user.")}</p>
+
+          <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              <p className="text-sm font-medium">{t("Role and permissions")}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>{t("Role")}</Label>
+              <Select value={preset} onValueChange={pickPreset}>
+                <SelectTrigger aria-label={t("Role")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_PRESETS.map((r) => (
+                    <SelectItem key={r.key} value={r.key} disabled={editingSelf && r.key !== "admin"}>
+                      {t(r.label)} — {t(r.description)}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="custom" disabled={editingSelf}>
+                    {t("Custom role")} — {t("Choose exactly what this person can do.")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {isAdminRole ? (
+              <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                {t("Administrators can do everything, including managing users and settings.")}
+              </p>
+            ) : (
+              <ul className="divide-y rounded-lg border bg-card">
+                {AREAS.map((area) => (
+                  <li key={area} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{t(AREA_INFO[area].label)}</p>
+                      <p className="text-xs text-muted-foreground">{t(AREA_INFO[area].hint)}</p>
+                    </div>
+                    <div role="radiogroup" aria-label={t(AREA_INFO[area].label)} className="inline-flex overflow-hidden rounded-lg border text-xs">
+                      {LEVELS.map((l) => (
+                        <button
+                          key={l.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={perms[area] === l.value}
+                          onClick={() => setLevel(area, l.value)}
+                          className={`px-2.5 py-1.5 transition-colors ${
+                            perms[area] === l.value
+                              ? l.value === "edit"
+                                ? "bg-primary text-primary-foreground"
+                                : l.value === "view"
+                                  ? "bg-sky-100 text-sky-900"
+                                  : "bg-muted text-foreground"
+                              : "bg-card text-muted-foreground hover:bg-muted/60"
+                          }`}
+                        >
+                          {t(l.label)}
+                        </button>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {editing?.mode === "edit" && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border p-3">
+              <div>
+                <p className="text-sm font-medium">{t("Account active")}</p>
+                <p className="text-xs text-muted-foreground">{t("A disabled account cannot sign in. Nothing is deleted.")}</p>
+              </div>
+              <Switch checked={active} onCheckedChange={setActive} disabled={editingSelf} aria-label={t("Account active")} />
             </div>
           )}
-          <div className="space-y-2">
-            <Label>{t("Role")}</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as "admin" | "recruiter")}>
-              <SelectTrigger aria-label={t("Role")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recruiter">{t("Recruiter — manages jobs and candidates")}</SelectItem>
-                <SelectItem value="admin">{t("Administrator — also manages users and settings")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+
           {error && (
             <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {t(error)}
@@ -340,6 +459,28 @@ function ResetPasswordDialog({ user, onClose }: { user: ManagedUser | null; onCl
   );
 }
 
+function PermissionChips({ user }: { user: ManagedUser }) {
+  const { t } = useI18n();
+  if (user.role === "admin") return <span className="text-xs text-muted-foreground">{t("Full access")}</span>;
+  const edit = AREAS.filter((a) => user.permissions[a] === "edit");
+  const view = AREAS.filter((a) => user.permissions[a] === "view");
+  if (!edit.length && !view.length) return <span className="text-xs text-muted-foreground">{t("No access")}</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {edit.map((a) => (
+        <Badge key={a} className="bg-primary/10 font-normal text-primary hover:bg-primary/10">
+          {t(AREA_INFO[a].label)}
+        </Badge>
+      ))}
+      {view.map((a) => (
+        <Badge key={a} variant="outline" className="font-normal text-muted-foreground">
+          {t(AREA_INFO[a].label)} · {t("View only")}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
 export function UsersSettings({ me }: { me: SessionUser }) {
   const { t } = useI18n();
   const [users, setUsers] = useState<ManagedUser[] | null>(null);
@@ -348,6 +489,10 @@ export function UsersSettings({ me }: { me: SessionUser }) {
   const [resetting, setResetting] = useState<ManagedUser | null>(null);
   const [deleting, setDeleting] = useState<ManagedUser | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "disabled">("all");
+  const [areaFilter, setAreaFilter] = useState<"all" | Area>("all");
 
   async function load() {
     try {
@@ -360,6 +505,23 @@ export function UsersSettings({ me }: { me: SessionUser }) {
   useEffect(() => {
     load();
   }, []);
+
+  const shown = useMemo(() => {
+    if (!users) return [];
+    const q = search.trim().toLowerCase();
+    const qDigits = q.replace(/\D/g, "");
+    return users.filter((u) => {
+      if (roleFilter !== "all" && presetKeyFor(u.role, u.permissions) !== roleFilter) return false;
+      if (statusFilter === "active" && !u.active) return false;
+      if (statusFilter === "disabled" && u.active) return false;
+      if (areaFilter !== "all" && u.permissions[areaFilter] === "none") return false;
+      if (!q) return true;
+      if ([u.name, u.email, u.phone, u.title].some((v) => v.toLowerCase().includes(q))) return true;
+      return qDigits.length >= 3 && u.phone.replace(/\D/g, "").includes(qDigits);
+    });
+  }, [users, search, roleFilter, statusFilter, areaFilter]);
+
+  const filtering = search.trim() !== "" || roleFilter !== "all" || statusFilter !== "all" || areaFilter !== "all";
 
   async function handleDelete() {
     if (!deleting) return;
@@ -376,6 +538,16 @@ export function UsersSettings({ me }: { me: SessionUser }) {
     }
   }
 
+  async function toggleActive(u: ManagedUser) {
+    try {
+      await apiClient.updateUser(u.id, { active: !u.active });
+      toast.success(u.active ? "Account disabled" : "Account enabled");
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    }
+  }
+
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -385,7 +557,7 @@ export function UsersSettings({ me }: { me: SessionUser }) {
             <h2 className="font-semibold">{t("Users")}</h2>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            {t("Only administrators can add users. There is no public sign-up.")}
+            {t("Only administrators can add users. Give each person a role and the exact areas they may use.")}
           </p>
         </div>
         <Button onClick={() => setEditing({ mode: "add" })}>
@@ -394,55 +566,150 @@ export function UsersSettings({ me }: { me: SessionUser }) {
         </Button>
       </div>
 
-      <div className="mt-4">
+      {users && users.length > 0 && (
+        <>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="relative min-w-56 flex-1">
+              <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("Search by name, email, phone or task")}
+                aria-label={t("Search by name, email, phone or task")}
+                className="ps-9"
+              />
+            </div>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-44" aria-label={t("Role")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("All roles")}</SelectItem>
+                {ROLE_PRESETS.map((r) => (
+                  <SelectItem key={r.key} value={r.key}>
+                    {t(r.label)}
+                  </SelectItem>
+                ))}
+                <SelectItem value="custom">{t("Custom role")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={areaFilter} onValueChange={(v) => setAreaFilter(v as typeof areaFilter)}>
+              <SelectTrigger className="w-44" aria-label={t("Area")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("Any area")}</SelectItem>
+                {AREAS.map((a) => (
+                  <SelectItem key={a} value={a}>
+                    {t(AREA_INFO[a].label)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+              <SelectTrigger className="w-40" aria-label={t("Status")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("All statuses")}</SelectItem>
+                <SelectItem value="active">{t("Active")}</SelectItem>
+                <SelectItem value="disabled">{t("Disabled")}</SelectItem>
+              </SelectContent>
+            </Select>
+            {filtering && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearch("");
+                  setRoleFilter("all");
+                  setStatusFilter("all");
+                  setAreaFilter("all");
+                }}
+              >
+                <X className="me-1 h-4 w-4" /> {t("Clear filters")}
+              </Button>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">{t("Showing {n} of {total}", { n: shown.length, total: users.length })}</p>
+        </>
+      )}
+
+      <div className="mt-3">
         {error && <ErrorState message={error} onRetry={load} />}
         {!users && !error && <TableSkeleton rows={3} />}
-        {users && (
+        {users && shown.length === 0 && (
+          <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">{t("Nothing matches your search.")}</p>
+        )}
+        {shown.length > 0 && (
           <ul className="divide-y rounded-lg border">
-            {users.map((u) => (
-              <li key={u.id} className="flex items-center gap-3 px-3 py-2.5">
-                <div className="min-w-0 flex-1">
+            {shown.map((u) => (
+              <li key={u.id} className={`flex flex-wrap items-start gap-3 px-3 py-3 ${u.active ? "" : "bg-muted/40"}`}>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">
+                  {u.name.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
                   <p className="truncate text-sm font-medium">
                     {u.name}
                     {u.id === me.id && <span className="ms-2 text-xs font-normal text-muted-foreground">({t("you")})</span>}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground" dir="ltr">
-                    {u.email} · {formatDate(u.createdAt)}
-                  </p>
-                </div>
-                <Badge variant={u.role === "admin" ? "default" : "secondary"} className="font-normal">
-                  {u.role === "admin" ? t("Administrator") : t("Recruiter")}
-                </Badge>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("Actions for {name}", { name: u.name })}>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setEditing({ mode: "edit", user: u })}>
-                      <Pencil className="me-2 h-4 w-4" /> {t("Edit")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setResetting(u)}>
-                      <KeyRound className="me-2 h-4 w-4" /> {t("Reset password")}
-                    </DropdownMenuItem>
-                    {u.id !== me.id && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleting(u)}>
-                          <Trash2 className="me-2 h-4 w-4" /> {t("Delete")}
-                        </DropdownMenuItem>
-                      </>
+                  {u.title && <p className="truncate text-xs text-foreground/80">{u.title}</p>}
+                  <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground" dir="ltr">
+                    <span>{u.email}</span>
+                    {u.phone && (
+                      <span className="inline-flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {u.phone}
+                      </span>
                     )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    <span>{u.lastLoginAt ? `${t("Last sign-in")}: ${formatDate(u.lastLoginAt)}` : formatDate(u.createdAt)}</span>
+                  </p>
+                  <PermissionChips user={u} />
+                </div>
+                <div className="flex items-center gap-2">
+                  {!u.active && (
+                    <Badge variant="outline" className="gap-1 font-normal text-red-600">
+                      <UserX className="h-3 w-3" /> {t("Disabled")}
+                    </Badge>
+                  )}
+                  <Badge variant={u.role === "admin" ? "default" : "secondary"} className="font-normal">
+                    {t(roleLabel(u))}
+                  </Badge>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("Actions for {name}", { name: u.name })}>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setEditing({ mode: "edit", user: u })}>
+                        <Pencil className="me-2 h-4 w-4" /> {t("Edit")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setResetting(u)}>
+                        <KeyRound className="me-2 h-4 w-4" /> {t("Reset password")}
+                      </DropdownMenuItem>
+                      {u.id !== me.id && (
+                        <>
+                          <DropdownMenuItem onClick={() => toggleActive(u)}>
+                            {u.active ? <UserX className="me-2 h-4 w-4" /> : <UserCheck className="me-2 h-4 w-4" />}
+                            {u.active ? t("Disable account") : t("Enable account")}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleting(u)}>
+                            <Trash2 className="me-2 h-4 w-4" /> {t("Delete")}
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </li>
             ))}
           </ul>
         )}
       </div>
 
-      <UserDialog editing={editing} onClose={() => setEditing(null)} onSaved={load} />
+      <UserDialog editing={editing} me={me} onClose={() => setEditing(null)} onSaved={load} />
       <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />
       <ConfirmDialog
         open={!!deleting}

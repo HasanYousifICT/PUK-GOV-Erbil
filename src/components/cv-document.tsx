@@ -12,6 +12,7 @@ import {
   fieldLabel,
   groupFields,
   isEmptyValue,
+  isFileValue,
   parseCustomData,
   sectionLabel,
 } from "@/lib/candidate-fields";
@@ -23,6 +24,16 @@ export const STANDARD_BLOCKS = [
   { id: "std:summary", label: "Summary" },
   { id: "std:documents", label: "Documents" },
 ] as const;
+
+const IMAGE_RE = /\.(png|jpe?g|webp)$/i;
+
+/** The personal photo: the built-in one, or (older data) an image uploaded in a field called "Personal photo". */
+export function photoKeyOf(c: Candidate, fields: CandidateField[]): string {
+  if (c.photo) return c.photo;
+  const f = fields.find((x) => x.type === "file" && /photo|وێنە/i.test(`${x.label} ${x.labelCkb}`));
+  const v = f ? parseCustomData(c.customData)[f.id] : undefined;
+  return isFileValue(v) && IMAGE_RE.test(v.key) ? v.key : "";
+}
 
 type Item = { label: string; node: ReactNode; wide?: boolean };
 type Block = { id: string; title: string; items?: Item[]; text?: string; chips?: string[] };
@@ -181,6 +192,17 @@ export function CvDocument({
       </span>
     );
 
+  const photoKey = photoKeyOf(candidate, fields);
+  const photo = (size: string, ring: string) =>
+    photoKey ? (
+      <img
+        src={apiClient.resumeUrl(photoKey)}
+        alt={candidate.name}
+        className={`${size} shrink-0 rounded-xl object-cover ${ring}`}
+        style={{ borderColor: accent }}
+      />
+    ) : null;
+
   const logo = design.showLogo && logoUrl ? <img src={logoUrl} alt={orgName} className="h-10 w-10 rounded object-contain" /> : null;
 
   const footer = design.footerNote && (
@@ -209,11 +231,14 @@ export function CvDocument({
       <>
         <header className="px-8 py-7 text-white" style={{ background: accent }}>
           <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="text-3xl font-bold leading-tight" dir="auto">
-                {candidate.name}
-              </h1>
-              {design.headerNote && <p className="mt-1 text-sm text-white/85">{design.headerNote}</p>}
+            <div className="flex min-w-0 items-center gap-4">
+              {photo("h-24 w-24", "border-2 border-white/80 bg-white")}
+              <div className="min-w-0">
+                <h1 className="text-3xl font-bold leading-tight" dir="auto">
+                  {candidate.name}
+                </h1>
+                {design.headerNote && <p className="mt-1 text-sm text-white/85">{design.headerNote}</p>}
+              </div>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2">
               {logo && <div className="rounded bg-white p-1">{logo}</div>}
@@ -231,6 +256,7 @@ export function CvDocument({
     body = (
       <div className="grid sm:grid-cols-[15rem_1fr]">
         <aside className="space-y-5 px-6 py-8 text-white" style={{ background: accent }}>
+          {photoKey && <div>{photo("h-32 w-32", "border-2 border-white/80 bg-white")}</div>}
           {logo && <div className="inline-block rounded bg-white p-1">{logo}</div>}
           {code && <div>{codeBadge(true)}</div>}
           {contact && (
@@ -260,12 +286,15 @@ export function CvDocument({
     body = (
       <div className="space-y-5 px-8 py-8">
         <header className="flex items-start justify-between gap-4 border-b-2 pb-4" style={{ borderColor: accent }}>
-          <div className="min-w-0">
-            <h1 className="text-3xl font-bold leading-tight" style={{ color: accent }} dir="auto">
-              {candidate.name}
-            </h1>
-            {design.headerNote && <p className="mt-1 text-sm text-neutral-600">{design.headerNote}</p>}
-            {contactRow(false)}
+          <div className="flex min-w-0 items-center gap-4">
+            {photo("h-24 w-24", "border-2 bg-neutral-100")}
+            <div className="min-w-0">
+              <h1 className="text-3xl font-bold leading-tight" style={{ color: accent }} dir="auto">
+                {candidate.name}
+              </h1>
+              {design.headerNote && <p className="mt-1 text-sm text-neutral-600">{design.headerNote}</p>}
+              {contactRow(false)}
+            </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
             {logo}

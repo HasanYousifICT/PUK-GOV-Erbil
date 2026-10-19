@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { ensureAdminExists, createSessionToken, sessionCookieHeader, verifyPassword } from "@/lib/auth";
+import { ensureAdminExists, createSessionToken, SESSION_SELECT, sessionCookieHeader, toSessionUser, verifyPassword } from "@/lib/auth";
 import { ApiError, handle, json, readJson, str } from "@/lib/api";
 
 export async function POST(req: Request) {
@@ -14,10 +14,12 @@ export async function POST(req: Request) {
       throw new ApiError(401, "Invalid email or password");
     }
 
+    if (!user.active) throw new ApiError(403, "This account is disabled. Ask an administrator.");
+
     await ensureAdminExists();
-    const fresh = await db.user.findUnique({ where: { id: user.id }, select: { role: true } });
+    const fresh = await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() }, select: SESSION_SELECT });
     const token = await createSessionToken(user.id);
-    const res = json({ id: user.id, name: user.name, email: user.email, role: fresh?.role === "admin" ? "admin" : "recruiter" });
+    const res = json(toSessionUser(fresh));
     res.headers.append("Set-Cookie", sessionCookieHeader(req, token));
     return res;
   });

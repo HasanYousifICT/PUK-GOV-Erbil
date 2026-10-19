@@ -1,12 +1,12 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 
 type Params = { params: Promise<{ id: string }> };
 
 /** PUT /api/categories/:id — rename / recode a category (its place in the tree is fixed). */
 export async function PUT(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "classification", "edit");
     const { id } = await params;
     const body = await readJson<Record<string, unknown>>(req);
     const existing = await db.jobCategory.findUnique({ where: { id } });
@@ -37,7 +37,7 @@ export async function PUT(req: Request, { params }: Params) {
 /** DELETE /api/categories/:id — only leaf categories; jobs in it simply become unclassified. */
 export async function DELETE(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireAuth(req);
+    await requireLevel(req, "classification", "edit");
     const { id } = await params;
     const existing = await db.jobCategory.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Category not found");

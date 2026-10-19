@@ -71,6 +71,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { useI18n } from "@/lib/i18n";
+import { useCan } from "@/lib/permissions-context";
 /* --------------------------------- card --------------------------------- */
 
 function ApplicationCard({
@@ -479,6 +480,7 @@ export function ApplicationsView({
   focusApplicationId?: string;
 }) {
   const { t } = useI18n();
+  const canEdit = useCan("applications", "edit");
   const [apps, setApps] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [jobFilter, setJobFilter] = useState("all");
@@ -555,7 +557,7 @@ export function ApplicationsView({
         title={t("Applications")}
         description={t("Drag candidates across the pipeline, or use the card menu on touch devices.")}
         action={
-          <Button onClick={() => setAddOpen(true)}>
+          !canEdit ? undefined : <Button onClick={() => setAddOpen(true)}>
             <Plus className="me-2 h-4 w-4" />
             {t("Add Candidate to Job")}
           </Button>
