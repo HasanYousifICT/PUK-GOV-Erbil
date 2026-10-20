@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
+import { ensureTitle } from "@/lib/job-titles";
 import { EMPLOYMENT_TYPES, JOB_STATUSES } from "@/lib/constants";
 
 type Params = { params: Promise<{ id: string }> };
@@ -63,6 +64,7 @@ export async function PUT(req: Request, { params }: Params) {
       data.status = st;
     }
 
+    if (data.title) await ensureTitle(data.title, (data.categoryId ?? existing.categoryId) || null);
     const job = await db.job.update({
       where: { id },
       data,

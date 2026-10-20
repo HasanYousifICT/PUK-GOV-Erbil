@@ -57,8 +57,21 @@ model JobCategory {
   parent    JobCategory?  @relation("JobCategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
   children  JobCategory[] @relation("JobCategoryTree")
   jobs      Job[]
+  titles    JobTitle[]
 
   @@index([parentId])
+}
+
+// Static list of job titles. Jobs are created by picking a title from this list
+// (new titles can be added on the spot); a title can carry a default classification.
+model JobTitle {
+  id         String   @id @default(cuid())
+  title      String   @unique
+  titleCkb   String   @default("")
+  categoryId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  category   JobCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 }
 
 model Candidate {

@@ -83,6 +83,14 @@ export type PortalData = {
 
 export type AuthStatus = { users: number; firstRun: boolean; signupOpen: boolean; demo: boolean };
 
+export type JobTitle = {
+  id: string;
+  title: string;
+  titleCkb: string;
+  categoryId: string | null;
+  jobCount?: number;
+};
+
 export type Job = {
   id: string;
   title: string;
@@ -299,6 +307,14 @@ export const apiClient = {
   updateJob: (id: string, data: Partial<Job>) =>
     api<Job>(`/api/jobs/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteJob: (id: string) => api<{ ok: boolean }>(`/api/jobs/${id}`, { method: "DELETE" }),
+
+  /* static list of job titles */
+  listJobTitles: () => api<JobTitle[]>("/api/job-titles"),
+  createJobTitle: (data: { title: string; titleCkb?: string; categoryId?: string | null }) =>
+    api<JobTitle>("/api/job-titles", { method: "POST", body: JSON.stringify(data) }),
+  updateJobTitle: (id: string, data: { title?: string; titleCkb?: string; categoryId?: string | null }) =>
+    api<JobTitle>(`/api/job-titles/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteJobTitle: (id: string) => api<{ ok: boolean }>(`/api/job-titles/${id}`, { method: "DELETE" }),
 
   /* job classification */
   listCategories: () => api<JobCategory[]>("/api/categories"),

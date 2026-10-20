@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, UserPlus } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Candidate, Job, apiClient } from "@/lib/client";
 
 import { useI18n } from "@/lib/i18n";
+import { CategoryPicker, categoryPathText, useCategories } from "@/components/category-picker";
+import { descendantIds } from "@/lib/categories";
 export function AddApplicationDialog({
   open,
   onOpenChange,
@@ -30,7 +32,9 @@ export function AddApplicationDialog({
   defaultJobId?: string;
   onCreated?: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const { index: catIndex } = useCategories();
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [candidateId, setCandidateId] = useState("");
@@ -62,8 +66,16 @@ export function AddApplicationDialog({
     if (open) {
       setCandidateId(defaultCandidateId ?? "");
       setJobId(defaultJobId ?? "");
+      setCategoryId(null);
     }
   }, [open, defaultCandidateId, defaultJobId]);
+
+  // classification narrows the list of jobs (a class includes everything under it)
+  const shownJobs = useMemo(() => {
+    if (!categoryId || !catIndex) return jobs;
+    const ids = descendantIds(categoryId, catIndex);
+    return jobs.filter((j) => !!j.categoryId && ids.has(j.categoryId));
+  }, [jobs, categoryId, catIndex]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -118,18 +130,32 @@ export function AddApplicationDialog({
           </div>
 
           <div className="space-y-2">
+            <Label>{t("Job classification")}</Label>
+            <CategoryPicker
+              value={categoryId}
+              onChange={(id) => {
+                setCategoryId(id);
+                setJobId("");
+              }}
+              index={catIndex}
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label>{t("Job *")}</Label>
             <Select value={jobId} onValueChange={setJobId}>
               <SelectTrigger aria-label={t("Select job")}>
                 <SelectValue placeholder={t("Select an open job")} />
               </SelectTrigger>
               <SelectContent className="max-h-64 thin-scrollbar">
-                {jobs.map((j) => (
+                {shownJobs.map((j) => (
                   <SelectItem key={j.id} value={j.id}>
-                    {j.title} · {j.location || t("Any location")}
+                    {j.title}
+                    {j.categoryId ? ` · ${categoryPathText(j.categoryId, catIndex, locale).split(locale === "ckb" ? " ‹ " : " › ").pop()}` : ""}
+                    {` · ${j.location || t("Any location")}`}
                   </SelectItem>
                 ))}
-                {jobs.length === 0 && (
+                {shownJobs.length === 0 && (
                   <div className="px-3 py-2 text-sm text-muted-foreground">{t("No open jobs available")}</div>
                 )}
               </SelectContent>

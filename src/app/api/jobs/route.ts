@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
+import { ensureTitle } from "@/lib/job-titles";
 import { EMPLOYMENT_TYPES, JOB_STATUSES } from "@/lib/constants";
 
 /** GET /api/jobs — list all jobs with application counts */
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
     if (categoryId && !(await db.jobCategory.findUnique({ where: { id: categoryId } }))) {
       throw new ApiError(400, "Category not found");
     }
+    await ensureTitle(title, categoryId);
     const job = await db.job.create({
       data: {
         categoryId,

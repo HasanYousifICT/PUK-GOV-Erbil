@@ -63,6 +63,7 @@ import { EMPLOYMENT_TYPES, JOB_STATUSES } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n";
 import { useCan } from "@/lib/permissions-context";
 import { CategoryFilter, CategoryPicker, categoryPathText, useCategories } from "@/components/category-picker";
+import { JobTitlePicker } from "@/components/job-titles";
 import { descendantIds } from "@/lib/categories";
 /* ------------------------------ Job form dialog ----------------------------- */
 
@@ -159,13 +160,14 @@ export function JobFormDialog({
 
         <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2" noValidate>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="job-title">{t("Job Title *")}</Label>
-            <Input
-              id="job-title"
-              placeholder={t("e.g. Senior Frontend Developer")}
+            <Label>{t("Job Title *")}</Label>
+            <JobTitlePicker
+              open={open}
               value={form.title}
-              onChange={(e) => set("title")(e.target.value)}
-              required
+              categoryId={form.categoryId}
+              onChange={(title, defaultCat) =>
+                setForm((f) => ({ ...f, title, categoryId: defaultCat ?? f.categoryId }))
+              }
             />
           </div>
           <div className="space-y-2 sm:col-span-2">
