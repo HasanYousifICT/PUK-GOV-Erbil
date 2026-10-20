@@ -53,15 +53,20 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 /* ----------------------------- Candidate access ---------------------------- */
 
-type Created = { username: string; password: string; code: string };
+type Created = { username: string | null; phone: string; password: string; code: string };
 
-function AccountDialog({
+/** A candidate that already exists (the candidate list's "Create access" button). */
+export type AccessFor = { id: string; name: string; email: string; phone: string };
+
+export function AccountDialog({
   open,
+  candidate,
   onClose,
   onSaved,
   onOpenDetails,
 }: {
   open: boolean;
+  candidate?: AccessFor | null;
   onClose: () => void;
   onSaved: () => void;
   onOpenDetails: (id: string) => void;
@@ -81,13 +86,13 @@ function AccountDialog({
     if (!open) return;
     setUsername("");
     setPassword(randomPassword());
-    setFullName("");
-    setEmail("");
-    setPhone("");
+    setFullName(candidate?.name ?? "");
+    setEmail(candidate?.email ?? "");
+    setPhone(candidate?.phone ?? "");
     setError(null);
     setDuplicate(null);
     setCreated(null);
-  }, [open]);
+  }, [open, candidate]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -96,8 +101,15 @@ function AccountDialog({
     if (!phone.trim()) return setError("Phone number is required");
     setBusy(true);
     try {
-      const a = await apiClient.createCandidateAccount({ username, password, phone, fullName, email });
-      setCreated({ username: a.username, password, code: a.code });
+      const a = await apiClient.createCandidateAccount({
+        username: username.trim() || undefined,
+        password,
+        phone,
+        fullName,
+        email,
+        candidateId: candidate?.id,
+      });
+      setCreated({ username: a.username, phone: a.phone ?? phone, password, code: a.code });
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -107,24 +119,40 @@ function AccountDialog({
     }
   }
 
-  const sheet = created ? `${t("Username")}: ${created.username}\n${t("Password")}: ${created.password}\n${t("Candidate code")}: ${created.code}` : "";
+  const sheet = created
+    ? [
+        `${t("Phone")}: ${created.phone}`,
+        created.username ? `${t("Username")}: ${created.username}` : "",
+        `${t("Password")}: ${created.password}`,
+        `${t("Candidate code")}: ${created.code}`,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "";
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{created ? t("Candidate access created") : t("Add candidate access")}</DialogTitle>
+          <DialogTitle>
+            {created
+              ? t("Candidate access created")
+              : candidate
+                ? t("Create access for {name}", { name: candidate.name })
+                : t("Add candidate access")}
+          </DialogTitle>
           <DialogDescription>
             {created
               ? t("Give these details to the candidate. The password is shown only now.")
-              : t("The candidate signs in with this username and password. A unique code is created automatically.")}
+              : t("The candidate signs in with the phone number (or the username, if you set one) and the password. A unique code is created automatically.")}
           </DialogDescription>
         </DialogHeader>
         {created ? (
           <div className="space-y-3">
             <dl className="space-y-2 rounded-lg border bg-muted/30 p-3 text-sm">
               {[
-                [t("Username"), created.username],
+                [t("Phone"), created.phone],
+                ...(created.username ? [[t("Username"), created.username]] : []),
                 [t("Password"), created.password],
                 [t("Candidate code"), created.code],
               ].map(([k, v]) => (
@@ -149,8 +177,14 @@ function AccountDialog({
         ) : (
           <form onSubmit={submit} className="space-y-4" noValidate>
             <div className="space-y-2">
-              <Label htmlFor="ca-user">{t("Username")} *</Label>
+              <Label htmlFor="ca-phone">{t("Phone")} *</Label>
+              <Input id="ca-phone" type="tel" dir="ltr" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+964 750 000 0000" />
+              <p className="text-xs text-muted-foreground">{t("Each phone number can be used for one candidate access only.")}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ca-user">{t("Username (optional)")}</Label>
               <Input id="ca-user" dir="ltr" autoCapitalize="none" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="ahmed.ali" />
+              <p className="text-xs text-muted-foreground">{t("The candidate can sign in with the phone number, or with the username if you set one.")}</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="ca-pass">{t("Password")} *</Label>
@@ -160,11 +194,6 @@ function AccountDialog({
                   <Wand2 className="me-1.5 h-4 w-4" /> {t("Generate")}
                 </Button>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ca-phone">{t("Phone")} *</Label>
-              <Input id="ca-phone" type="tel" dir="ltr" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+964 750 000 0000" />
-              <p className="text-xs text-muted-foreground">{t("Each phone number can be used for one candidate access only.")}</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -193,7 +222,7 @@ function AccountDialog({
                     onOpenDetails(duplicate.id);
                   }}
                 >
-                  <span dir="ltr">{duplicate.username}</span>
+                  <span dir="ltr">{duplicate.username ?? duplicate.phone}</span>
                   {duplicate.fullName && <span dir="auto">· {duplicate.fullName}</span>}
                   <span dir="ltr">· {duplicate.phone}</span>
                   <span>— {t("Open details")}</span>
@@ -252,7 +281,7 @@ function ResetDialog({ account, onClose }: { account: CandidateAccount | null; o
         <DialogHeader>
           <DialogTitle>{t("Reset password")}</DialogTitle>
           <DialogDescription dir="ltr" className="text-start">
-            {account?.username}
+            {account?.username ?? account?.phone}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4" noValidate>
@@ -312,6 +341,7 @@ function AccountDetailsDialog({
 }) {
   const { t } = useI18n();
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
@@ -320,6 +350,7 @@ function AccountDetailsDialog({
 
   useEffect(() => {
     if (!account) return;
+    setUsername(account.username ?? "");
     setFullName(account.fullName);
     setEmail(account.email);
     setPhone(account.phone ?? "");
@@ -334,7 +365,7 @@ function AccountDetailsDialog({
     setDuplicate(null);
     setBusy(true);
     try {
-      await apiClient.updateCandidateAccount(account.id, { fullName, email, phone });
+      await apiClient.updateCandidateAccount(account.id, { fullName, email, phone, username });
       toast.success("Saved");
       onChanged();
       onClose();
@@ -354,14 +385,14 @@ function AccountDetailsDialog({
         <DialogHeader>
           <DialogTitle>{t("Candidate access details")}</DialogTitle>
           <DialogDescription dir="ltr" className="text-start">
-            {a?.username}
+            {a?.username ?? a?.phone}
           </DialogDescription>
         </DialogHeader>
         {a && (
           <form onSubmit={save} className="space-y-4" noValidate>
             <dl className="grid gap-3 rounded-lg border bg-muted/30 p-3 sm:grid-cols-2">
-              <Fact label={t("Username")}>
-                <span dir="ltr">{a.username}</span>
+              <Fact label={t("Sign in with")}>
+                <span dir="ltr">{[a.phone, a.username].filter(Boolean).join("  ·  ") || "—"}</span>
               </Fact>
               <Fact label={t("Candidate code")}>
                 <span className="inline-flex items-center gap-1 font-mono" dir="ltr">
@@ -387,7 +418,11 @@ function AccountDetailsDialog({
                 <Label htmlFor="cd-phone">{t("Phone")} *</Label>
                 <Input id="cd-phone" type="tel" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!canEdit} />
               </div>
-              <div className="space-y-2 sm:col-span-2">
+              <div className="space-y-2">
+                <Label htmlFor="cd-user">{t("Username (optional)")}</Label>
+                <Input id="cd-user" dir="ltr" autoCapitalize="none" value={username} onChange={(e) => setUsername(e.target.value)} disabled={!canEdit} />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="cd-email">{t("Email (optional)")}</Label>
                 <Input id="cd-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!canEdit} />
               </div>
@@ -405,7 +440,7 @@ function AccountDetailsDialog({
                   className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-md bg-white/70 px-2 py-1 text-start font-medium text-red-800 underline underline-offset-2 hover:bg-white"
                   onClick={() => onOpenOther(duplicate.id)}
                 >
-                  <span dir="ltr">{duplicate.username}</span>
+                  <span dir="ltr">{duplicate.username ?? duplicate.phone}</span>
                   {duplicate.fullName && <span dir="auto">· {duplicate.fullName}</span>}
                   <span dir="ltr">· {duplicate.phone}</span>
                   <span>— {t("Open details")}</span>
@@ -446,7 +481,7 @@ function AccountDetailsDialog({
 
 type StatusFilter = "all" | "Submitted" | "Waiting" | "Draft saved";
 
-export function CandidateAccessSettings({ canEdit = true }: { canEdit?: boolean }) {
+export function CandidateAccessSettings({ canEdit = true, openId }: { canEdit?: boolean; openId?: string }) {
   const { t } = useI18n();
   const [rows, setRows] = useState<CandidateAccount[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -470,6 +505,10 @@ export function CandidateAccessSettings({ canEdit = true }: { canEdit?: boolean 
   useEffect(() => {
     load();
   }, []);
+  // arriving from a "Candidate duplicate" link elsewhere: open that access
+  useEffect(() => {
+    if (openId) setDetailsId(openId);
+  }, [openId]);
 
   const statusOf = (a: CandidateAccount): StatusFilter => (a.candidateId ? "Submitted" : a.draftAt ? "Draft saved" : "Waiting");
 
@@ -482,7 +521,7 @@ export function CandidateAccessSettings({ canEdit = true }: { canEdit?: boolean 
       if (phoneFilter === "with" && !a.phone) return false;
       if (phoneFilter === "without" && a.phone) return false;
       if (!q) return true;
-      if ([a.username, a.fullName, a.code, a.email, a.phone ?? ""].some((v) => v.toLowerCase().includes(q))) return true;
+      if ([a.username ?? "", a.fullName, a.code, a.email, a.phone ?? ""].some((v) => v.toLowerCase().includes(q))) return true;
       return qDigits.length >= 3 && (a.phone ?? "").replace(/\D/g, "").includes(qDigits);
     });
   }, [rows, search, status, phoneFilter]);
@@ -515,7 +554,7 @@ export function CandidateAccessSettings({ canEdit = true }: { canEdit?: boolean 
             <h2 className="font-semibold">{t("Candidate access")}</h2>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            {t("Create a username and password for each candidate. Each one gets a unique code. The candidate signs in from the first page, fills in the application and then sees their CV.")}
+            {t("Create a login for each candidate with their phone number (a username is optional) and a password. Each one gets a unique code. The candidate signs in from the first page, fills in the application and then sees their CV.")}
           </p>
         </div>
         {canEdit && (
@@ -595,7 +634,7 @@ export function CandidateAccessSettings({ canEdit = true }: { canEdit?: boolean 
               <li key={a.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5 hover:bg-muted/30">
                 <button type="button" className="min-w-0 flex-1 text-start" onClick={() => setDetailsId(a.id)} aria-label={t("Open details")}>
                   <p className="truncate text-sm font-medium" dir="ltr">
-                    {a.username}
+                    {a.username ?? a.phone ?? a.code}
                     {a.fullName && <span className="ms-2 font-normal text-muted-foreground" dir="auto">{a.fullName}</span>}
                   </p>
                   <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground" dir="ltr">
@@ -615,7 +654,7 @@ export function CandidateAccessSettings({ canEdit = true }: { canEdit?: boolean 
                 </Badge>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("Actions for {name}", { name: a.username })}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("Actions for {name}", { name: a.username ?? a.phone ?? a.code })}>
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -662,7 +701,7 @@ export function CandidateAccessSettings({ canEdit = true }: { canEdit?: boolean 
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(o) => !o && setDeleting(null)}
-        title={t("Delete access “{name}”?", { name: deleting?.username ?? "" })}
+        title={t("Delete access “{name}”?", { name: deleting?.username ?? deleting?.phone ?? "" })}
         description={t("The candidate will no longer be able to sign in. Their candidate record is kept.")}
         onConfirm={remove}
         busy={deleteBusy}

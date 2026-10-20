@@ -32,7 +32,7 @@ export type Org = {
 
 export type CandidateAccount = {
   id: string;
-  username: string;
+  username: string | null; // optional: the phone number works as a login too
   code: string;
   fullName: string;
   email: string;
@@ -71,7 +71,7 @@ export type CvDesign = {
 export type PortalJob = { id: string; title: string; location: string; employmentType: string };
 
 export type PortalData = {
-  account: { username: string; code: string; fullName: string; email: string; phone: string; draftAt: string | null };
+  account: { username: string | null; code: string; fullName: string; email: string; phone: string; draftAt: string | null };
   draft: PortalDraft | null;
   submitted: boolean;
   candidate: Candidate | null;
@@ -120,6 +120,7 @@ export type Candidate = {
   createdAt: string;
   updatedAt: string;
   _count?: { applications: number };
+  access?: CandidateAccessInfo | null; // the candidate's login (list and profile only)
 };
 
 /** Body for creating/updating a candidate: customData is sent as an object. */
@@ -241,7 +242,10 @@ export class ApiClientError extends Error {
   }
 }
 
-export type DuplicateAccount = { id: string; username: string; fullName: string; phone: string };
+export type DuplicateAccount = { id: string; username: string | null; fullName: string; phone: string };
+
+/** A candidate's login, when they have one. */
+export type CandidateAccessInfo = { id: string; username: string | null; phone: string };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -404,9 +408,9 @@ export const apiClient = {
   /* candidate accounts (administrators) */
   listCandidateAccounts: () => api<CandidateAccount[]>("/api/candidate-accounts"),
   getCandidateAccount: (id: string) => api<CandidateAccount>(`/api/candidate-accounts/${id}`),
-  createCandidateAccount: (data: { username: string; password: string; phone: string; fullName?: string; email?: string }) =>
+  createCandidateAccount: (data: { username?: string; password: string; phone: string; fullName?: string; email?: string; candidateId?: string }) =>
     api<CandidateAccount>("/api/candidate-accounts", { method: "POST", body: JSON.stringify(data) }),
-  updateCandidateAccount: (id: string, data: { password?: string; fullName?: string; email?: string; phone?: string }) =>
+  updateCandidateAccount: (id: string, data: { password?: string; fullName?: string; email?: string; phone?: string; username?: string }) =>
     api<CandidateAccount>(`/api/candidate-accounts/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteCandidateAccount: (id: string) => api<{ ok: boolean }>(`/api/candidate-accounts/${id}`, { method: "DELETE" }),
 

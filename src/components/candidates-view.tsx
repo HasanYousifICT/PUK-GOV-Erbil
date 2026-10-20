@@ -12,6 +12,7 @@ import {
   Filter,
   X,
   GraduationCap,
+  KeyRound,
   Mail,
   MapPin,
   MoreHorizontal,
@@ -56,7 +57,7 @@ import { CustomFieldValue, useCandidateFields, useCandidateSections } from "@/co
 import { activeFilterCount, CandidateFilters } from "@/lib/candidate-filters";
 import { fieldLabel, groupFields, parseCustomData, sectionLabel } from "@/lib/candidate-fields";
 import { Job } from "@/lib/client";
-import { CandidateCvDialog } from "@/components/candidate-access-settings";
+import { AccountDialog, CandidateCvDialog } from "@/components/candidate-access-settings";
 import { AddApplicationDialog } from "@/components/add-application-dialog";
 import {
   Avatar,
@@ -77,6 +78,49 @@ import { useI18n } from "@/lib/i18n";
 import { useCan } from "@/lib/permissions-context";
 /* ------------------------------- Candidates list ------------------------------ */
 
+/** "Has access" (opens the access details) or a "Create access" button for candidates without a login. */
+function AccessCell({
+  c,
+  canCreate,
+  canOpen,
+  onCreate,
+  onOpen,
+}: {
+  c: Pick<Candidate, "name" | "access">;
+  canCreate: boolean;
+  canOpen: boolean;
+  onCreate: () => void;
+  onOpen: () => void;
+}) {
+  const { t } = useI18n();
+  if (c.access) {
+    const label = c.access.username ?? c.access.phone;
+    const badge = (
+      <Badge className="gap-1 bg-emerald-100 font-normal text-emerald-800 hover:bg-emerald-100">
+        <KeyRound className="h-3 w-3" />
+        {t("Has access")}
+        {label && <span className="font-mono text-[11px] opacity-80" dir="ltr">· {label}</span>}
+      </Badge>
+    );
+    return canOpen ? (
+      <button type="button" onClick={onOpen} className="rounded-full focus-visible:outline focus-visible:outline-2" aria-label={t("Open details")}>
+        {badge}
+      </button>
+    ) : (
+      badge
+    );
+  }
+  return canCreate ? (
+    <Button type="button" size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={onCreate}>
+      <KeyRound className="h-3 w-3" /> {t("Create access")}
+    </Button>
+  ) : (
+    <Badge variant="outline" className="font-normal text-muted-foreground">
+      {t("No access")}
+    </Badge>
+  );
+}
+
 export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) => void }) {
   const { t } = useI18n();
   const canEdit = useCan("candidates", "edit");
@@ -92,6 +136,9 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [accessFor, setAccessFor] = useState<Candidate | null>(null);
+  const canCreateAccess = useCan("access", "edit");
+  const canSeeAccess = useCan("access", "view");
   const filterCount = activeFilterCount(filters);
   const filtersKey = JSON.stringify(filters);
 
@@ -262,6 +309,7 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
                   <th className="px-4 py-3 font-medium">{t("Candidate")}</th>
                   <th className="px-4 py-3 font-medium">{t("Phone")}</th>
                   <th className="px-4 py-3 font-medium">{t("Candidate code")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Profile access")}</th>
                   <th className="px-4 py-3 font-medium">{t("Location")}</th>
                   <th className="px-4 py-3 text-center font-medium">{t("Applications")}</th>
                   <th className="px-4 py-3 text-end font-medium">{t("Actions")}</th>
@@ -295,6 +343,15 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground" dir="ltr">
                       {c.code || "—"}
+                    </td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <AccessCell
+                        c={c}
+                        canCreate={canCreateAccess}
+                        canOpen={canSeeAccess}
+                        onCreate={() => setAccessFor(c)}
+                        onOpen={() => onNavigate({ view: "settings", tab: "access", accessId: c.access?.id })}
+                      />
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{c.location || "—"}</td>
                     <td className="px-4 py-3 text-center font-medium tabular-nums">
@@ -357,6 +414,15 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
                     <p className="truncate text-xs text-muted-foreground">{c.email || t("No email")}</p>
                   </div>
                 </div>
+                <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                  <AccessCell
+                    c={c}
+                    canCreate={canCreateAccess}
+                    canOpen={canSeeAccess}
+                    onCreate={() => setAccessFor(c)}
+                    onOpen={() => onNavigate({ view: "settings", tab: "access", accessId: c.access?.id })}
+                  />
+                </div>
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span className="truncate" dir="ltr">{c.phone || c.code || ""}</span>
                   <span className="flex items-center gap-1">
@@ -371,6 +437,13 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
       )}
 
       <CandidateFormDialog open={formOpen} onOpenChange={setFormOpen} candidate={editing} onSaved={load} />
+      <AccountDialog
+        open={!!accessFor}
+        candidate={accessFor}
+        onClose={() => setAccessFor(null)}
+        onSaved={load}
+        onOpenDetails={(id) => onNavigate({ view: "settings", tab: "access", accessId: id })}
+      />
       <BulkAddToJobDialog
         open={bulkOpen}
         onOpenChange={setBulkOpen}
@@ -411,6 +484,9 @@ export function CandidateDetailView({
   const [addJobOpen, setAddJobOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [cvOpen, setCvOpen] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
+  const canCreateAccess = useCan("access", "edit");
+  const canSeeAccess = useCan("access", "view");
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -505,6 +581,15 @@ export function CandidateDetailView({
                     <MapPin className="h-3.5 w-3.5" /> {candidate.location}
                   </span>
                 )}
+              </div>
+              <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                <AccessCell
+                  c={candidate}
+                  canCreate={canCreateAccess}
+                  canOpen={canSeeAccess}
+                  onCreate={() => setAccessOpen(true)}
+                  onOpen={() => onNavigate({ view: "settings", tab: "access", accessId: candidate.access?.id })}
+                />
               </div>
               {candidate.code && (
                 <p className="mt-1.5 text-xs text-muted-foreground">
@@ -677,6 +762,13 @@ export function CandidateDetailView({
       </div>
 
       <CandidateFormDialog open={editOpen} onOpenChange={setEditOpen} candidate={candidate} onSaved={load} />
+      <AccountDialog
+        open={accessOpen}
+        candidate={candidate}
+        onClose={() => setAccessOpen(false)}
+        onSaved={load}
+        onOpenDetails={(id) => onNavigate({ view: "settings", tab: "access", accessId: id })}
+      />
       <AddApplicationDialog
         open={addJobOpen}
         onOpenChange={setAddJobOpen}

@@ -33,7 +33,7 @@ export function HomeView({ onApply, onStaff }: { onApply: () => void; onStaff: (
             </span>
             <h2 className="mt-4 text-lg font-semibold">{t("Candidate login")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {t("Sign in with the username and password you received to fill in your application and see your CV.")}
+              {t("Sign in with your phone number (or username) and the password you received to fill in your application and see your CV.")}
             </p>
             <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary">
               {t("Sign in")} <ArrowRight className="h-4 w-4 rtl:-scale-x-100" />

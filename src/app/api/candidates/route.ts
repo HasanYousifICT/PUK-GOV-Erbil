@@ -26,6 +26,7 @@ function parseFilters(raw: string | null): CandidateFilters {
     jobMode: o.jobMode === "notIn" ? "notIn" : "in",
     stage: text(o.stage) || undefined,
     resume: o.resume === "has" || o.resume === "none" ? o.resume : undefined,
+    access: o.access === "has" || o.access === "none" ? o.access : undefined,
     from: /^\d{4}-\d{2}-\d{2}$/.test(text(o.from)) ? text(o.from) : undefined,
     to: /^\d{4}-\d{2}-\d{2}$/.test(text(o.to)) ? text(o.to) : undefined,
   };
@@ -70,6 +71,12 @@ export async function GET(req: Request) {
     }
     if (f.resume === "has") and.push({ resume: { not: "" } });
     if (f.resume === "none") and.push({ resume: "" });
+    if (f.access) {
+      const linked = (await db.candidateAccount.findMany({ where: { candidateId: { not: null } }, select: { candidateId: true } }))
+        .map((a) => a.candidateId)
+        .filter((x): x is string => !!x);
+      and.push(f.access === "has" ? { id: { in: linked } } : { id: { notIn: linked } });
+    }
     if (f.from) and.push({ createdAt: { gte: new Date(`${f.from}T00:00:00.000Z`) } });
     if (f.to) and.push({ createdAt: { lte: new Date(`${f.to}T23:59:59.999Z`) } });
 
@@ -123,8 +130,20 @@ export async function GET(req: Request) {
         });
       }
     }
-    return json(candidates);
+    return json(await withAccess(candidates));
   });
+}
+
+/** Adds `access` (the candidate's login, or null) to each candidate. */
+async function withAccess<T extends { id: string }>(rows: T[]) {
+  const accounts = rows.length
+    ? await db.candidateAccount.findMany({
+        where: { candidateId: { in: rows.map((r) => r.id) } },
+        select: { id: true, candidateId: true, username: true, phone: true },
+      })
+    : [];
+  const by = new Map(accounts.map((a) => [a.candidateId, { id: a.id, username: a.username, phone: a.phone ?? "" }]));
+  return rows.map((r) => ({ ...r, access: by.get(r.id) ?? null }));
 }
 
 /** POST /api/candidates — create candidate (optionally referencing an uploaded resume key) */

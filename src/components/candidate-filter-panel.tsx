@@ -136,6 +136,16 @@ export function CandidateFilterPanel({
           ]}
         />
         <FilterSelect
+          label={t("Profile access (login)")}
+          value={filters.access ?? "any"}
+          onChange={(v) => set({ access: v as CandidateFilters["access"] })}
+          options={[
+            { value: "any", label: t("Any") },
+            { value: "has", label: t("Has a login (can open their profile)") },
+            { value: "none", label: t("No login yet (no username / password)") },
+          ]}
+        />
+        <FilterSelect
           label={t("Applications")}
           value={filters.applied ?? "any"}
           onChange={(v) => set({ applied: v as CandidateFilters["applied"] })}

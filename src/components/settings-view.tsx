@@ -37,10 +37,12 @@ export function SettingsView({
   user,
   onUserChange,
   tab = "profile",
+  accessId,
 }: {
   user: SessionUser;
   onUserChange: (user: SessionUser) => void;
   tab?: SettingsTab;
+  accessId?: string;
 }) {
   const { t } = useI18n();
   const current = SETTINGS_TABS.find((x) => x.tab === tab && settingsTabAllowed(x, user)) ?? SETTINGS_TABS[0];
@@ -183,7 +185,7 @@ export function SettingsView({
 
       )}
 
-      {tab === "access" && settingsTabAllowed(current, user) && <CandidateAccessSettings canEdit={can(user.permissions, "access", "edit")} />}
+      {tab === "access" && settingsTabAllowed(current, user) && <CandidateAccessSettings canEdit={can(user.permissions, "access", "edit")} openId={accessId} />}
       {user.role === "admin" && (
         <>
           {tab === "organization" && <OrganizationSettings />}

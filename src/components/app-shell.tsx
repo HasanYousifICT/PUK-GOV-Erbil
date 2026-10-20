@@ -40,7 +40,7 @@ export type NavState =
   | { view: "applications"; focusApplicationId?: string }
   | { view: "interviews" }
   | { view: "classification" }
-  | { view: "settings"; tab?: SettingsTab };
+  | { view: "settings"; tab?: SettingsTab; accessId?: string };
 
 type NavItem = { view: NavState["view"]; label: string; icon: typeof LayoutDashboard; area?: Area };
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
@@ -248,7 +248,7 @@ export function AppShell({
           )}
           {activeView === "interviews" && <InterviewsView onNavigate={navigate} />}
           {activeView === "classification" && <ClassificationView />}
-          {activeView === "settings" && <SettingsView user={user} onUserChange={onUserChange} tab={"tab" in nav ? nav.tab : undefined} />}
+          {activeView === "settings" && <SettingsView user={user} onUserChange={onUserChange} tab={"tab" in nav ? nav.tab : undefined} accessId={"accessId" in nav ? nav.accessId : undefined} />}
         </div>
       </main>
 

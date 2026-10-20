@@ -25,7 +25,11 @@ export async function GET(req: Request, { params }: Params) {
       },
     });
     if (!candidate) throw new ApiError(404, "Candidate not found");
-    return json(candidate);
+    const acc = await db.candidateAccount.findUnique({
+      where: { candidateId: id },
+      select: { id: true, username: true, phone: true },
+    });
+    return json({ ...candidate, access: acc ? { id: acc.id, username: acc.username, phone: acc.phone ?? "" } : null });
   });
 }
 

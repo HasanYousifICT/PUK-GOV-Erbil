@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { ApiError, handle, json, readJson, requireLevel, str } from "@/lib/api";
 import { accountSelect, assertPhoneFree } from "../route";
+import { usernameProblem } from "@/lib/candidate-auth";
 import { cleanPhone, isValidPhone, phoneKey } from "@/lib/phone";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -29,6 +30,18 @@ export async function PUT(req: Request, { params }: Ctx) {
       const p = str(body.password);
       if (p.length < 6) throw new ApiError(400, "Password must be at least 6 characters");
       data.passwordHash = await hashPassword(p);
+    }
+    if (body.username !== undefined) {
+      const u = str(body.username).trim().toLowerCase();
+      if (!u) {
+        data.username = null;
+      } else {
+        const problem = usernameProblem(u);
+        if (problem) throw new ApiError(400, problem);
+        const other = await db.candidateAccount.findUnique({ where: { username: u }, select: { id: true } });
+        if (other && other.id !== id) throw new ApiError(409, "This username is already taken");
+        data.username = u;
+      }
     }
     if (body.fullName !== undefined) data.fullName = str(body.fullName).trim().slice(0, 100);
     if (body.email !== undefined) {

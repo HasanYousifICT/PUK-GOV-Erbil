@@ -17,6 +17,7 @@ export type CandidateFilters = {
   jobMode?: "in" | "notIn";
   stage?: string;
   resume?: "any" | "has" | "none";
+  access?: "any" | "has" | "none"; // does the candidate have a login (username/phone + password)?
   from?: string; // YYYY-MM-DD, date added
   to?: string;
   custom?: CustomFilter[];
@@ -80,6 +81,7 @@ export function activeFilterCount(f: CandidateFilters): number {
   if (f.jobId) n++;
   if (f.stage) n++;
   if (f.resume && f.resume !== "any") n++;
+  if (f.access && f.access !== "any") n++;
   if (f.from) n++;
   if (f.to) n++;
   n += (f.custom ?? []).filter(isCustomFilterActive).length;

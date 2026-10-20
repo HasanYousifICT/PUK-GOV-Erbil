@@ -162,7 +162,7 @@ model Organization {
 
 model CandidateAccount {
   id           String   @id @default(cuid())
-  username     String   @unique
+  username     String?  @unique // optional: the candidate can also sign in with the phone number
   passwordHash String
   code         String   @unique // unique candidate code, shown read-only on the application form
   fullName     String   @default("") // optional: pre-fills the application form

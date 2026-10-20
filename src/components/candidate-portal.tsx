@@ -23,7 +23,7 @@ function CandidateLogin({ onBack, onLoggedIn }: { onBack: () => void; onLoggedIn
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!username.trim() || !password) return setError("Username and password are required");
+    if (!username.trim() || !password) return setError("Username or phone number and password are required");
     setBusy(true);
     try {
       await apiClient.candidateLogin(username.trim(), password);
@@ -49,12 +49,12 @@ function CandidateLogin({ onBack, onLoggedIn }: { onBack: () => void; onLoggedIn
             <img src={org.logoUrl} alt={org.name} className="mb-3 h-12 w-12 object-contain" />
             <h1 className="text-xl font-bold">{t("Candidate login")}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {t("Sign in with the username and password you received from us.")}
+              {t("Sign in with your phone number (or username) and the password you received from us.")}
             </p>
           </div>
           <form onSubmit={submit} className="space-y-4" noValidate>
             <div className="space-y-2">
-              <Label htmlFor="c-user">{t("Username")}</Label>
+              <Label htmlFor="c-user">{t("Phone number or username")}</Label>
               <Input id="c-user" dir="ltr" autoComplete="username" autoCapitalize="none" value={username} onChange={(e) => setUsername(e.target.value)} />
             </div>
             <div className="space-y-2">
@@ -179,7 +179,7 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <UserRound className="h-4 w-4" />
-            <span dir="ltr">{data.account.username}</span>
+            <span dir="ltr">{data.account.username ?? data.account.phone}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <LanguageSwitcher />

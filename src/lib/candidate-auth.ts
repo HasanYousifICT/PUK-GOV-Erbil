@@ -72,3 +72,10 @@ export async function generateUniqueCode(): Promise<string> {
 }
 
 export const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,39}$/;
+
+/** Why a username is not allowed (or "" when it is fine). A phone-number-like username would clash with phone sign-in. */
+export function usernameProblem(username: string): string {
+  if (!USERNAME_RE.test(username)) return "Username must be 3–40 characters: letters, numbers, dot, dash or underscore";
+  if (/^\+?\d{7,}$/.test(username)) return "The username cannot be a phone number";
+  return "";
+}
