@@ -34,6 +34,7 @@ export async function POST(req: Request) {
       throw new ApiError(400, "Invalid job status");
     }
     const categoryId = str(body.categoryId) || null;
+    if (!categoryId) throw new ApiError(400, "Please choose a job classification");
     if (categoryId && !(await db.jobCategory.findUnique({ where: { id: categoryId } }))) {
       throw new ApiError(400, "Category not found");
     }

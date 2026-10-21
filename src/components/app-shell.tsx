@@ -7,7 +7,6 @@ import {
   ChevronDown,
   ClipboardList,
   LayoutDashboard,
-  Layers,
   LogOut,
   Menu,
   Settings,
@@ -54,7 +53,6 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { view: "interviews", label: "Interviews", icon: CalendarDays, area: "interviews" },
     ],
   },
-  { title: "Setup", items: [{ view: "classification", label: "Classification", icon: Layers, area: "classification" }] },
 ];
 
 function SidebarContent({

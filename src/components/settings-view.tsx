@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Briefcase, Building2, KeyRound, ListChecks, Loader2, Palette, UserCog, Users, UsersRound, type LucideIcon } from "lucide-react";
+import { Briefcase, Building2, Layers, KeyRound, ListChecks, Loader2, Palette, UserCog, Users, UsersRound, type LucideIcon } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { apiClient, SessionUser } from "@/lib/client";
 import { Area, can } from "@/lib/permissions";
 import { PageHeader } from "@/components/shared";
+import { ClassificationView } from "@/components/classification-view";
 import { JobTitlesSettings } from "@/components/job-titles";
 import { CandidateFieldsSettings } from "@/components/candidate-fields";
 import { OrganizationSettings, UsersSettings } from "@/components/admin-settings";
@@ -16,7 +17,7 @@ import { CandidateAccessSettings, CvDesignSettings } from "@/components/candidat
 
 import { useI18n } from "@/lib/i18n";
 
-export type SettingsTab = "profile" | "organization" | "users" | "access" | "jobtitles" | "fields" | "cv";
+export type SettingsTab = "profile" | "organization" | "users" | "access" | "classification" | "jobtitles" | "fields" | "cv";
 
 /** Sub-pages of Settings (shown as a submenu in the sidebar). `admin` ones are for administrators only. */
 export const SETTINGS_TABS: { tab: SettingsTab; label: string; description: string; icon: LucideIcon; admin: boolean; area?: Area }[] = [
@@ -24,6 +25,7 @@ export const SETTINGS_TABS: { tab: SettingsTab; label: string; description: stri
   { tab: "organization", label: "Organization", description: "Name, logo and details shown across the system.", icon: Building2, admin: true },
   { tab: "users", label: "Users", description: "Staff accounts and their roles.", icon: Users, admin: true },
   { tab: "access", label: "Candidate access", description: "Logins and unique codes for candidates.", icon: UsersRound, admin: true, area: "access" },
+  { tab: "classification", label: "Classification", description: "Job categories used to classify jobs.", icon: Layers, admin: true, area: "classification" },
   { tab: "jobtitles", label: "Job titles", description: "The list of job titles used when creating jobs.", icon: Briefcase, admin: true, area: "jobs" },
   { tab: "fields", label: "Profile fields", description: "Sections and fields of the candidate profile and form.", icon: ListChecks, admin: true },
   { tab: "cv", label: "CV design", description: "How candidate CVs look.", icon: Palette, admin: true },
@@ -188,6 +190,7 @@ export function SettingsView({
       )}
 
       {tab === "access" && settingsTabAllowed(current, user) && <CandidateAccessSettings canEdit={can(user.permissions, "access", "edit")} openId={accessId} />}
+      {tab === "classification" && settingsTabAllowed(current, user) && <ClassificationView />}
       {tab === "jobtitles" && settingsTabAllowed(current, user) && <JobTitlesSettings />}
       {user.role === "admin" && (
         <>

@@ -38,6 +38,10 @@ export async function PUT(req: Request, { params }: Params) {
     if (!existing) throw new ApiError(404, "Job not found");
 
     const data: Record<string, string | null> = {};
+    // a job whose title or classification is being edited must end up with a classification
+    if (("title" in body || "categoryId" in body) && !("categoryId" in body) && !existing.categoryId) {
+      throw new ApiError(400, "Please choose a job classification");
+    }
     if ("title" in body) {
       const title = str(body.title).trim();
       if (!title) throw new ApiError(400, "Job title is required");
@@ -48,6 +52,7 @@ export async function PUT(req: Request, { params }: Params) {
     }
     if ("categoryId" in body) {
       const categoryId = str(body.categoryId) || null;
+      if (!categoryId) throw new ApiError(400, "Please choose a job classification");
       if (categoryId && !(await db.jobCategory.findUnique({ where: { id: categoryId } }))) {
         throw new ApiError(400, "Category not found");
       }

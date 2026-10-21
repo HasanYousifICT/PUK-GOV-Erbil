@@ -878,4 +878,8 @@ export const ckb: Record<string, string> = {
   "The list of job titles used when creating jobs.": "لیستی ناونیشانەکانی کار کە لە دروستکردنی کار بەکاردێن.",
   "No job titles yet": "هێشتا هیچ ناونیشانێکی کار نییە",
   "Add the first job title to start the list.": "یەکەم ناونیشانی کار زیاد بکە بۆ دەستپێکردنی لیستەکە.",
+  "Please choose a job classification": "تکایە پۆلێنکردنی کارەکە هەڵبژێرە",
+  "Job Classification *": "پۆلێنکردنی کار *",
+  "Choose the job classification below first — it is saved with this title.": "سەرەتا پۆلێنکردنی کار لە خوارەوە هەڵبژێرە — لەگەڵ ئەم ناونیشانە پاشەکەوت دەکرێت.",
+  "Job categories used to classify jobs.": "پۆلەکانی کار کە بۆ پۆلێنکردنی کارەکان بەکاردێن.",
 };

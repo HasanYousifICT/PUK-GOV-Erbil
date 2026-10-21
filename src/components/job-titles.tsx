@@ -87,6 +87,10 @@ export function JobTitlePicker({
   async function add() {
     const title = newTitle.replace(/\s+/g, " ").trim();
     if (!title) return;
+    if (!categoryId) {
+      setError("Please choose a job classification");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -153,7 +157,7 @@ export function JobTitlePicker({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              {t("The classification chosen below is saved as this title's default.")}
+              {t("Choose the job classification below first — it is saved with this title.")}
             </p>
             {error && <p className="text-xs text-red-600">{t(error)}</p>}
           </div>
@@ -306,6 +310,10 @@ function TitleDialog({
       setError("Job title is required");
       return;
     }
+    if (!categoryId) {
+      setError("Please choose a job classification");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -337,7 +345,7 @@ function TitleDialog({
             <Input id="jt-ckb" dir="rtl" value={titleCkb} onChange={(e) => setTitleCkb(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>{t("Default classification")}</Label>
+            <Label>{t("Job Classification *")}</Label>
             <CategoryPicker value={categoryId} onChange={setCategoryId} index={index} />
           </div>
           {error && (

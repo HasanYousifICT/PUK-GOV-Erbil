@@ -34,6 +34,7 @@ export async function POST(req: Request) {
     const title = str(body.title).replace(/\s+/g, " ").trim();
     if (!title) throw new ApiError(400, "Job title is required");
     const categoryId = str(body.categoryId) || null;
+    if (!categoryId) throw new ApiError(400, "Please choose a job classification");
     if (categoryId && !(await db.jobCategory.findUnique({ where: { id: categoryId } }))) {
       throw new ApiError(400, "Category not found");
     }

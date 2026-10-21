@@ -128,6 +128,10 @@ export function JobFormDialog({
       setError("Job title is required");
       return;
     }
+    if (!form.categoryId) {
+      setError("Please choose a job classification");
+      return;
+    }
     setBusy(true);
     try {
       if (job) {
@@ -217,7 +221,7 @@ export function JobFormDialog({
             />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label>{t("Job Classification")}</Label>
+            <Label>{t("Job Classification *")}</Label>
             <CategoryPicker
               value={form.categoryId}
               onChange={(id) => setForm((f) => ({ ...f, categoryId: id }))}
