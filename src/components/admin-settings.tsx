@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -296,7 +297,7 @@ function UserDialog({
             {editing?.mode === "add" && (
               <div className="space-y-2">
                 <Label htmlFor="u-pass">{t("Password *")}</Label>
-                <Input id="u-pass" type="text" dir="ltr" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("At least 6 characters")} />
+                <PasswordInput id="u-pass" value={password} onChange={setPassword} placeholder={t("At least 6 characters")} />
               </div>
             )}
             <div className="space-y-2 sm:col-span-2">
@@ -437,7 +438,7 @@ function ResetPasswordDialog({ user, onClose }: { user: ManagedUser | null; onCl
         <form onSubmit={submit} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label htmlFor="r-pass">{t("New password")}</Label>
-            <Input id="r-pass" type="text" dir="ltr" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("At least 6 characters")} />
+            <PasswordInput id="r-pass" value={password} onChange={setPassword} placeholder={t("At least 6 characters")} />
           </div>
           {error && (
             <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

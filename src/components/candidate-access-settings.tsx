@@ -1,9 +1,10 @@
 "use client";
 
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { Check, Copy, KeyRound, Loader2, MoreHorizontal, Palette, Phone, Printer, Search, Trash2, UserPlus, UsersRound, Wand2, X } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, KeyRound, Loader2, MoreHorizontal, Palette, Phone, Printer, Search, Trash2, UserPlus, UsersRound, Wand2, X } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Badge } from "@/components/ui/badge";
+import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -52,6 +53,20 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 /* ----------------------------- Candidate access ---------------------------- */
+
+/** Shows dots until the admin clicks the eye. */
+function MaskedValue({ value }: { value: string }) {
+  const { t } = useI18n();
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <span>{show ? value : "•".repeat(Math.min(value.length, 12))}</span>
+      <button type="button" onClick={() => setShow((s) => !s)} aria-label={show ? t("Hide password") : t("Show password")} className="rounded p-1 text-muted-foreground hover:text-foreground">
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </>
+  );
+}
 
 type Created = { username: string | null; phone: string; password: string; code: string };
 
@@ -159,7 +174,7 @@ export function AccountDialog({
                 <div key={k} className="flex items-center justify-between gap-2">
                   <dt className="text-muted-foreground">{k}</dt>
                   <dd className="flex items-center gap-1 font-mono" dir="ltr">
-                    {v}
+                    {k === t("Password") ? <MaskedValue value={v} /> : v}
                     <CopyButton text={v} label={t("Copy")} />
                   </dd>
                 </div>
@@ -189,7 +204,7 @@ export function AccountDialog({
             <div className="space-y-2">
               <Label htmlFor="ca-pass">{t("Password")} *</Label>
               <div className="flex gap-2">
-                <Input id="ca-pass" dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} className="font-mono" />
+                <PasswordInput id="ca-pass" value={password} onChange={setPassword} className="font-mono" />
                 <Button type="button" variant="outline" onClick={() => setPassword(randomPassword())}>
                   <Wand2 className="me-1.5 h-4 w-4" /> {t("Generate")}
                 </Button>
@@ -286,7 +301,7 @@ function ResetDialog({ account, onClose }: { account: CandidateAccount | null; o
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4" noValidate>
           <div className="flex items-center gap-1">
-            <Input dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} className="font-mono" disabled={done} />
+            <PasswordInput value={password} onChange={setPassword} className="font-mono" disabled={done} />
             <CopyButton text={password} label={t("Copy")} />
           </div>
           {done && <p className="text-sm text-emerald-700">{t("Password changed. Give the new password to the candidate.")}</p>}

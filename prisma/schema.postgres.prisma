@@ -170,6 +170,7 @@ model Organization {
   footer     String   @default("")
   logo       String   @default("") // storage key of the uploaded logo ("" = built-in logo)
   logoVersion Int     @default(0)
+  categoriesCleared Boolean @default(false) // the admin deleted the whole classification: don't re-add the starter data
   updatedAt  DateTime @updatedAt
 }
 

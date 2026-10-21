@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
-import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
+import { ApiError, handle, json, readJson, requireAdmin, requireAuth, requireLevel, str } from "@/lib/api";
 import { MAX_CATEGORY_DEPTH } from "@/lib/categories";
+import { ORG_DEFAULTS } from "@/lib/org";
 import { ensureJobCategories } from "@/lib/job-categories-seed";
 
 /** GET /api/categories — the whole classification tree as a flat list (with job counts). */
@@ -41,5 +42,23 @@ export async function POST(req: Request) {
       include: { _count: { select: { jobs: true } } },
     });
     return json(created, 201);
+  });
+}
+
+/** DELETE /api/categories — administrators only: remove the WHOLE classification in one go.
+ *  Jobs and job titles that used a category just become unclassified. */
+export async function DELETE(req: Request) {
+  return handle(async () => {
+    await requireAdmin(req);
+    // deepest levels first (a category with children cannot be deleted)
+    const rows: { level: number }[] = await db.jobCategory.findMany({ select: { level: true } });
+    const levels = Array.from(new Set(rows.map((r) => r.level))).sort((a, b) => b - a);
+    for (const level of levels) await db.jobCategory.deleteMany({ where: { level } });
+    await db.organization.upsert({
+      where: { id: "org" },
+      update: { categoriesCleared: true },
+      create: { id: "org", name: ORG_DEFAULTS.name, categoriesCleared: true },
+    });
+    return json({ ok: true, deleted: rows.length });
   });
 }

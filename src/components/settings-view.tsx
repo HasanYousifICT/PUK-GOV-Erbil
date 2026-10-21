@@ -190,7 +190,7 @@ export function SettingsView({
       )}
 
       {tab === "access" && settingsTabAllowed(current, user) && <CandidateAccessSettings canEdit={can(user.permissions, "access", "edit")} openId={accessId} />}
-      {tab === "classification" && settingsTabAllowed(current, user) && <ClassificationView />}
+      {tab === "classification" && settingsTabAllowed(current, user) && <ClassificationView isAdmin={user.role === "admin"} />}
       {tab === "jobtitles" && settingsTabAllowed(current, user) && <JobTitlesSettings />}
       {user.role === "admin" && (
         <>

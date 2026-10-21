@@ -168,10 +168,7 @@ export function JobFormDialog({
             <JobTitlePicker
               open={open}
               value={form.title}
-              categoryId={form.categoryId}
-              onChange={(title, defaultCat) =>
-                setForm((f) => ({ ...f, title, categoryId: defaultCat ?? f.categoryId }))
-              }
+              onChange={(title) => setForm((f) => ({ ...f, title }))}
             />
           </div>
           <div className="space-y-2 sm:col-span-2">

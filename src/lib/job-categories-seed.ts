@@ -7,6 +7,9 @@ let running: Promise<void> | null = null;
 
 async function seed() {
   if ((await db.jobCategory.count()) > 0) return;
+  // the administrator emptied the classification on purpose: keep it empty
+  const org = await db.organization.findUnique({ where: { id: "org" } }).catch(() => null);
+  if (org?.categoriesCleared) return;
   const idByCode = new Map<string, { id: string; level: number }>();
   // Parents always come before their children in the list.
   for (const row of parseSeed()) {

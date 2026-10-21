@@ -224,7 +224,7 @@ function ImportDialog({ open, onClose, onDone }: { open: boolean; onClose: () =>
   );
 }
 
-export function ClassificationView() {
+export function ClassificationView({ isAdmin = false }: { isAdmin?: boolean }) {
   const { t, locale } = useI18n();
   const canEdit = useCan("classification", "edit");
   const { list, index, error, reload } = useCategories();
@@ -234,6 +234,23 @@ export function ClassificationView() {
   const [deleting, setDeleting] = useState<JobCategory | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
+  const [clearBusy, setClearBusy] = useState(false);
+
+  async function clearAll() {
+    setClearBusy(true);
+    try {
+      const r = await apiClient.deleteAllCategories();
+      toast.success(t("{n} categories deleted", { n: r.deleted }));
+      setClearOpen(false);
+      setExpanded(new Set());
+      reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setClearBusy(false);
+    }
+  }
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -344,6 +361,12 @@ export function ClassificationView() {
               <Upload className="me-2 h-4 w-4" />
               {t("Import CSV")}
             </Button>
+            {isAdmin && (list?.length ?? 0) > 0 && (
+              <Button variant="outline" className="text-red-600 hover:text-red-700" onClick={() => setClearOpen(true)}>
+                <Trash2 className="me-2 h-4 w-4" />
+                {t("Delete all")}
+              </Button>
+            )}
             <Button onClick={() => setEditing({ mode: "add", parent: null })}>
               <Plus className="me-2 h-4 w-4" />
               {t("Add class")}
@@ -404,6 +427,15 @@ export function ClassificationView() {
       {index && (
         <CategoryFormDialog editing={editing} onClose={() => setEditing(null)} onSaved={reload} index={index} />
       )}
+      <ConfirmDialog
+        open={clearOpen}
+        onOpenChange={setClearOpen}
+        title={t("Delete the whole classification?")}
+        description={t("All {n} classes and sub-classes are deleted. Jobs keep existing but become unclassified. This cannot be undone.", { n: list?.length ?? 0 })}
+        confirmLabel="Delete all"
+        onConfirm={clearAll}
+        busy={clearBusy}
+      />
       <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onDone={reload} />
       <ConfirmDialog
         open={!!deleting}

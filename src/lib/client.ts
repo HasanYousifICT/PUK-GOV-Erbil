@@ -87,7 +87,6 @@ export type JobTitle = {
   id: string;
   title: string;
   titleCkb: string;
-  categoryId: string | null;
   jobCount?: number;
 };
 
@@ -310,9 +309,9 @@ export const apiClient = {
 
   /* static list of job titles */
   listJobTitles: () => api<JobTitle[]>("/api/job-titles"),
-  createJobTitle: (data: { title: string; titleCkb?: string; categoryId?: string | null }) =>
+  createJobTitle: (data: { title: string; titleCkb?: string }) =>
     api<JobTitle>("/api/job-titles", { method: "POST", body: JSON.stringify(data) }),
-  updateJobTitle: (id: string, data: { title?: string; titleCkb?: string; categoryId?: string | null }) =>
+  updateJobTitle: (id: string, data: { title?: string; titleCkb?: string }) =>
     api<JobTitle>(`/api/job-titles/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteJobTitle: (id: string) => api<{ ok: boolean }>(`/api/job-titles/${id}`, { method: "DELETE" }),
 
@@ -322,6 +321,7 @@ export const apiClient = {
     api<JobCategory>("/api/categories", { method: "POST", body: JSON.stringify(data) }),
   updateCategory: (id: string, data: { name?: string; code?: string; nameCkb?: string }) =>
     api<JobCategory>(`/api/categories/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteAllCategories: () => api<{ ok: boolean; deleted: number }>("/api/categories", { method: "DELETE" }),
   deleteCategory: (id: string) => api<{ ok: boolean }>(`/api/categories/${id}`, { method: "DELETE" }),
   importCategories: (csv: string) =>
     api<{ created: number; skipped: number; failed: number }>("/api/categories/import", {

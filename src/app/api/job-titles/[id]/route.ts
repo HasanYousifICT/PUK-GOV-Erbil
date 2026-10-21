@@ -21,14 +21,6 @@ export async function PUT(req: Request, { params }: Params) {
       data.title = title;
     }
     if ("titleCkb" in body) data.titleCkb = str(body.titleCkb).trim();
-    if ("categoryId" in body) {
-      const categoryId = str(body.categoryId) || null;
-      if (!categoryId) throw new ApiError(400, "Please choose a job classification");
-      if (categoryId && !(await db.jobCategory.findUnique({ where: { id: categoryId } }))) {
-        throw new ApiError(400, "Category not found");
-      }
-      data.categoryId = categoryId;
-    }
     const row = await db.jobTitle.update({ where: { id }, data });
     return json(row);
   });

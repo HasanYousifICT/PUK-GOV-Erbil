@@ -11,11 +11,11 @@ export async function findTitle(title: string, exceptId?: string) {
 }
 
 /** Add a title to the list when it is not there yet (used when a job is saved). */
-export async function ensureTitle(title: string, categoryId: string | null) {
+export async function ensureTitle(title: string) {
   const clean = title.replace(/\s+/g, " ").trim();
   if (!clean) return null;
   const found = await findTitle(clean);
   if (found) return found;
-  return db.jobTitle.create({ data: { title: clean, categoryId } });
+  return db.jobTitle.create({ data: { title: clean } });
 }
 

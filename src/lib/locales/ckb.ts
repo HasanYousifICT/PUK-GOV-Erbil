@@ -882,4 +882,11 @@ export const ckb: Record<string, string> = {
   "Job Classification *": "پۆلێنکردنی کار *",
   "Choose the job classification below first — it is saved with this title.": "سەرەتا پۆلێنکردنی کار لە خوارەوە هەڵبژێرە — لەگەڵ ئەم ناونیشانە پاشەکەوت دەکرێت.",
   "Job categories used to classify jobs.": "پۆلەکانی کار کە بۆ پۆلێنکردنی کارەکان بەکاردێن.",
+  "Hide password": "شاردنەوەی وشەی نهێنی",
+  "Show password": "پیشاندانی وشەی نهێنی",
+  "The list of job titles. When you create a job you pick a title from this list (and can add a new one).": "لیستی ناونیشانەکانی کار. کاتێک کارێک دروست دەکەیت ناونیشانێک لەم لیستە هەڵدەبژێریت (و دەتوانیت یەکێکی نوێ زیاد بکەیت).",
+  "{n} categories deleted": "{n} پۆل سڕایەوە",
+  "Delete all": "سڕینەوەی هەموو",
+  "Delete the whole classification?": "هەموو پۆلێنکردنەکە بسڕدرێتەوە؟",
+  "All {n} classes and sub-classes are deleted. Jobs keep existing but become unclassified. This cannot be undone.": "هەموو {n} پۆل و ژێرپۆلەکان دەسڕدرێنەوە. کارەکان دەمێننەوە بەڵام بێ پۆلێنکردن دەبن. ناتوانرێت پاشگەز ببیتەوە.",
 };

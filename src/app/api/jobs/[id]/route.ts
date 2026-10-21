@@ -69,7 +69,7 @@ export async function PUT(req: Request, { params }: Params) {
       data.status = st;
     }
 
-    if (data.title) await ensureTitle(data.title, (data.categoryId ?? existing.categoryId) || null);
+    if (data.title) await ensureTitle(data.title);
     const job = await db.job.update({
       where: { id },
       data,

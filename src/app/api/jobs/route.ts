@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     if (categoryId && !(await db.jobCategory.findUnique({ where: { id: categoryId } }))) {
       throw new ApiError(400, "Category not found");
     }
-    await ensureTitle(title, categoryId);
+    await ensureTitle(title);
     const job = await db.job.create({
       data: {
         categoryId,

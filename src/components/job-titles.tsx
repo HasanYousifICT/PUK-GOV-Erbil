@@ -20,7 +20,6 @@ import { Label } from "@/components/ui/label";
 import { ApiClientError, JobTitle, apiClient } from "@/lib/client";
 import { useI18n } from "@/lib/i18n";
 import { useCan } from "@/lib/permissions-context";
-import { CategoryPicker, categoryPathText, useCategories } from "@/components/category-picker";
 import { SearchableSelect } from "@/components/searchable-select";
 import { ConfirmDialog, EmptyState, ErrorState, Spinner } from "@/components/shared";
 
@@ -50,13 +49,10 @@ const titleLabel = (r: JobTitle, locale: "en" | "ckb") => (locale === "ckb" && r
 export function JobTitlePicker({
   value,
   onChange,
-  categoryId,
   open,
 }: {
   value: string;
-  onChange: (title: string, defaultCategoryId: string | null) => void;
-  /** Classification currently chosen in the form — saved with a newly added title. */
-  categoryId: string | null;
+  onChange: (title: string) => void;
   /** Re-load the list every time the surrounding dialog opens. */
   open?: boolean;
 }) {
@@ -87,17 +83,13 @@ export function JobTitlePicker({
   async function add() {
     const title = newTitle.replace(/\s+/g, " ").trim();
     if (!title) return;
-    if (!categoryId) {
-      setError("Please choose a job classification");
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
-      const row = await apiClient.createJobTitle({ title, categoryId });
+      const row = await apiClient.createJobTitle({ title });
       setList((l) => [...(l ?? []), row]);
       toast.success(t("Job title added to the list"));
-      onChange(row.title, row.categoryId);
+      onChange(row.title);
       setAdding(false);
       setNewTitle("");
     } catch (e) {
@@ -105,7 +97,7 @@ export function JobTitlePicker({
         // already in the list: just use it
         await reload();
         const existing = (list ?? []).find((r) => r.title.toLowerCase() === title.toLowerCase());
-        onChange(existing?.title ?? title, existing?.categoryId ?? null);
+        onChange(existing?.title ?? title);
         setAdding(false);
         setNewTitle("");
       } else {
@@ -121,8 +113,7 @@ export function JobTitlePicker({
       <SearchableSelect
         value={value || undefined}
         onChange={(v) => {
-          const row = (list ?? []).find((r) => r.title === v);
-          onChange(v ?? "", row?.categoryId ?? null);
+          onChange(v ?? "");
         }}
         options={options}
         placeholder={t("Select a job title")}
@@ -156,9 +147,6 @@ export function JobTitlePicker({
                 {t("Cancel")}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {t("Choose the job classification below first — it is saved with this title.")}
-            </p>
             {error && <p className="text-xs text-red-600">{t(error)}</p>}
           </div>
         ) : (
@@ -174,10 +162,9 @@ export function JobTitlePicker({
 /* ------------------------------ Settings page ------------------------------ */
 
 export function JobTitlesSettings() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const canEdit = useCan("jobs", "edit");
   const { list, error, reload } = useJobTitles();
-  const { index } = useCategories();
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<JobTitle | "new" | null>(null);
   const [deleting, setDeleting] = useState<JobTitle | null>(null);
@@ -211,7 +198,7 @@ export function JobTitlesSettings() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        {t("The list of job titles. When you create a job you pick a title from this list (and can add a new one). Each title can have a default classification.")}
+        {t("The list of job titles. When you create a job you pick a title from this list (and can add a new one).")}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-48 flex-1 sm:max-w-xs">
@@ -239,8 +226,6 @@ export function JobTitlesSettings() {
                   {r.titleCkb && <span className="ms-2 text-sm font-normal text-muted-foreground" dir="rtl">{r.titleCkb}</span>}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {r.categoryId ? categoryPathText(r.categoryId, index, locale) : t("No classification")}
-                  {" · "}
                   {t("{n} jobs", { n: r.jobCount ?? 0 })}
                 </p>
               </div>
@@ -289,10 +274,8 @@ function TitleDialog({
   onSaved: () => void;
 }) {
   const { t } = useI18n();
-  const { index } = useCategories();
   const [title, setTitle] = useState("");
   const [titleCkb, setTitleCkb] = useState("");
-  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -301,7 +284,6 @@ function TitleDialog({
       setError(null);
       setTitle(row === "new" ? "" : row.title);
       setTitleCkb(row === "new" ? "" : row.titleCkb);
-      setCategoryId(row === "new" ? null : row.categoryId);
     }
   }, [row]);
 
@@ -310,15 +292,11 @@ function TitleDialog({
       setError("Job title is required");
       return;
     }
-    if (!categoryId) {
-      setError("Please choose a job classification");
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
-      if (row === "new") await apiClient.createJobTitle({ title, titleCkb, categoryId });
-      else if (row) await apiClient.updateJobTitle(row.id, { title, titleCkb, categoryId });
+      if (row === "new") await apiClient.createJobTitle({ title, titleCkb });
+      else if (row) await apiClient.updateJobTitle(row.id, { title, titleCkb });
       toast.success(t("Saved"));
       onSaved();
     } catch (e) {
@@ -343,10 +321,6 @@ function TitleDialog({
           <div className="space-y-2">
             <Label htmlFor="jt-ckb">{t("Kurdish name (optional)")}</Label>
             <Input id="jt-ckb" dir="rtl" value={titleCkb} onChange={(e) => setTitleCkb(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>{t("Job Classification *")}</Label>
-            <CategoryPicker value={categoryId} onChange={setCategoryId} index={index} />
           </div>
           {error && (
             <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
