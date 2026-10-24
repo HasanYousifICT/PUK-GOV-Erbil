@@ -26,6 +26,9 @@ export type Org = {
   website: string;
   websiteUrl: string;
   footer: string;
+  bannerName: string;
+  version: string;
+  copyright: string;
   logoUrl: string;
   customLogo: boolean;
 };
@@ -386,7 +389,7 @@ export const apiClient = {
 
   /* organization (branding) */
   getOrg: () => api<Org>("/api/public/org"),
-  updateOrg: (data: Omit<Org, "logoUrl" | "customLogo">) =>
+  updateOrg: (data: Partial<Omit<Org, "logoUrl" | "customLogo">>) =>
     api<Org>("/api/organization", { method: "PUT", body: JSON.stringify(data) }),
   uploadLogo: (file: File) => {
     const form = new FormData();

@@ -9,6 +9,9 @@ export type OrgInfo = {
   website: string;
   websiteUrl: string;
   footer: string;
+  bannerName: string;
+  version: string;
+  copyright: string;
   logoUrl: string; // always usable in <img src>
   customLogo: boolean;
 };
@@ -21,6 +24,9 @@ export const ORG_DEFAULTS = {
   website: "attitude360.in",
   websiteUrl: "https://attitude360.in",
   footer: "OpenRecruitOS Community Edition · Self-hosted · MIT licensed",
+  bannerName: "",
+  version: "",
+  copyright: "",
 };
 
 export async function getOrg(): Promise<OrgInfo> {
@@ -40,6 +46,9 @@ export async function getOrg(): Promise<OrgInfo> {
     website: row.website,
     websiteUrl: row.websiteUrl,
     footer: row.footer,
+    bannerName: row.bannerName,
+    version: row.version,
+    copyright: row.copyright,
     logoUrl: custom ? `/api/public/logo?v=${row.logoVersion}` : "/logo.png",
     customLogo: custom,
   };

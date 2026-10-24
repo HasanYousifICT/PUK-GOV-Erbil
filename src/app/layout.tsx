@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { LanguageProvider } from "@/lib/i18n";
+import { AppBanner } from "@/components/app-banner";
 import { OrgProvider } from "@/lib/org-context";
 
 const geistSans = Geist({
@@ -54,6 +55,7 @@ export default function RootLayout({
         <LanguageProvider>
           <OrgProvider>
             {children}
+            <AppBanner />
             <Toaster position="top-right" richColors />
           </OrgProvider>
         </LanguageProvider>

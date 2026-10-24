@@ -897,4 +897,11 @@ export const ckb: Record<string, string> = {
   "Your profile has been submitted and can no longer be edited": "پرۆفایلەکەت نێردراوە و چیتر ناتوانرێت دەستکاری بکرێت",
   "Your CV has been downloaded": "CVـەکەت داگیرا",
   "Download PDF": "داگرتنی PDF",
+  "Banner": "بانەر",
+  "Banner updated": "بانەر نوێکرایەوە",
+  "Name": "ناو",
+  "Version": "وەشان",
+  "Copyright": "مافی چاپ",
+  "Shown as a thin line at the bottom of every page. Leave a field empty to hide it.": "وەک هێڵێکی تەنک لە خوارەوەی هەموو پەڕەکان پیشان دەدرێت. خانەیەک بەتاڵ بهێڵەرەوە بۆ شاردنەوەی.",
+  "Name, version and copyright shown at the bottom of every page.": "ناو، وەشان و مافی چاپ کە لە خوارەوەی هەموو پەڕەکان پیشان دەدرێن.",
 };

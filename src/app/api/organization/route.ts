@@ -9,24 +9,20 @@ export async function PUT(req: Request) {
   return handle(async () => {
     await requireAdmin(req);
     const body = await readJson<Record<string, unknown>>(req);
-    const name = cut(body.name, 100);
-    if (!name) throw new ApiError(400, "Organization name is required");
-    const websiteUrl = cut(body.websiteUrl, 300);
-    if (websiteUrl && !/^https?:\/\/[^\s]+\.[^\s]+$/i.test(websiteUrl)) {
+    // only the fields that are sent are changed
+    const data: Record<string, string> = {};
+    const text: [string, number][] = [
+      ["name", 100], ["tagline", 200], ["byline", 100], ["company", 150], ["website", 100],
+      ["websiteUrl", 300], ["footer", 200], ["bannerName", 100], ["version", 40], ["copyright", 200],
+    ];
+    for (const [key, max] of text) if (key in body) data[key] = cut(body[key], max);
+    if ("name" in data && !data.name) throw new ApiError(400, "Organization name is required");
+    if (data.websiteUrl && !/^https?:\/\/[^\s]+\.[^\s]+$/i.test(data.websiteUrl)) {
       throw new ApiError(400, "Website address must start with http:// or https://");
     }
-    const data = {
-      name,
-      tagline: cut(body.tagline, 200),
-      byline: cut(body.byline, 100),
-      company: cut(body.company, 150),
-      website: cut(body.website, 100),
-      websiteUrl,
-      footer: cut(body.footer, 200),
-    };
     await db.organization.upsert({
       where: { id: "org" },
-      create: { id: "org", ...data },
+      create: { id: "org", name: ORG_DEFAULTS.name, ...data },
       update: data,
     });
     void ORG_DEFAULTS;

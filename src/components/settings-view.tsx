@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Briefcase, Building2, Layers, KeyRound, ListChecks, Loader2, Palette, UserCog, Users, UsersRound, type LucideIcon } from "lucide-react";
+import { Briefcase, Building2, Flag, Layers, KeyRound, ListChecks, Loader2, Palette, UserCog, Users, UsersRound, type LucideIcon } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,12 +12,13 @@ import { PageHeader } from "@/components/shared";
 import { ClassificationView } from "@/components/classification-view";
 import { JobTitlesSettings } from "@/components/job-titles";
 import { CandidateFieldsSettings } from "@/components/candidate-fields";
+import { BannerSettings } from "@/components/banner-settings";
 import { OrganizationSettings, UsersSettings } from "@/components/admin-settings";
 import { CandidateAccessSettings, CvDesignSettings } from "@/components/candidate-access-settings";
 
 import { useI18n } from "@/lib/i18n";
 
-export type SettingsTab = "profile" | "organization" | "users" | "access" | "classification" | "jobtitles" | "fields" | "cv";
+export type SettingsTab = "profile" | "organization" | "users" | "access" | "banner" | "classification" | "jobtitles" | "fields" | "cv";
 
 /** Sub-pages of Settings (shown as a submenu in the sidebar). `admin` ones are for administrators only. */
 export const SETTINGS_TABS: { tab: SettingsTab; label: string; description: string; icon: LucideIcon; admin: boolean; area?: Area }[] = [
@@ -25,6 +26,7 @@ export const SETTINGS_TABS: { tab: SettingsTab; label: string; description: stri
   { tab: "organization", label: "Organization", description: "Name, logo and details shown across the system.", icon: Building2, admin: true },
   { tab: "users", label: "Users", description: "Staff accounts and their roles.", icon: Users, admin: true },
   { tab: "access", label: "Candidate access", description: "Logins and unique codes for candidates.", icon: UsersRound, admin: true, area: "access" },
+  { tab: "banner", label: "Banner", description: "Name, version and copyright shown at the bottom of every page.", icon: Flag, admin: true },
   { tab: "classification", label: "Classification", description: "Job categories used to classify jobs.", icon: Layers, admin: true, area: "classification" },
   { tab: "jobtitles", label: "Job titles", description: "The list of job titles used when creating jobs.", icon: Briefcase, admin: true, area: "jobs" },
   { tab: "fields", label: "Profile fields", description: "Sections and fields of the candidate profile and form.", icon: ListChecks, admin: true },
@@ -195,6 +197,7 @@ export function SettingsView({
       {user.role === "admin" && (
         <>
           {tab === "organization" && <OrganizationSettings />}
+          {tab === "banner" && <BannerSettings />}
           {tab === "users" && <UsersSettings me={user} />}
           {tab === "fields" && <CandidateFieldsSettings />}
           {tab === "cv" && <CvDesignSettings />}

@@ -13,6 +13,9 @@ const FALLBACK: Org = {
   website: "",
   websiteUrl: "",
   footer: "",
+  bannerName: "",
+  version: "",
+  copyright: "",
   logoUrl: "/logo.png",
   customLogo: false,
 };
