@@ -219,7 +219,7 @@ export function AppShell({
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side={dir === "rtl" ? "right" : "left"} className="w-72 p-0">
+          <SheetContent side={dir === "rtl" ? "right" : "left"} className="w-72 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground [&>button]:text-sidebar-foreground">
             <SheetHeader className="sr-only">
               <SheetTitle>{t("Navigation")}</SheetTitle>
             </SheetHeader>
