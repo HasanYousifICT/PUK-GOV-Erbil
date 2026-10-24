@@ -44,6 +44,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
+import { CategoryFilter, useCategories } from "@/components/category-picker";
+import { descendantIds } from "@/lib/categories";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -484,7 +486,9 @@ export function ApplicationsView({
   const [apps, setApps] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [jobFilter, setJobFilter] = useState("all");
-  const [jobs, setJobs] = useState<{ id: string; title: string }[]>([]);
+  const [jobs, setJobs] = useState<{ id: string; title: string; categoryId: string | null }[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const { index: catIndex } = useCategories();
   const [addOpen, setAddOpen] = useState(false);
   const [detailAppId, setDetailAppId] = useState<string | null>(null);
   const [scheduleFor, setScheduleFor] = useState<Application | null>(null);
@@ -494,7 +498,7 @@ export function ApplicationsView({
     try {
       const [applications, allJobs] = await Promise.all([apiClient.listApplications(), apiClient.listJobs()]);
       setApps(applications);
-      setJobs(allJobs.map((j) => ({ id: j.id, title: j.title })));
+      setJobs(allJobs.map((j) => ({ id: j.id, title: j.title, categoryId: j.categoryId ?? null })));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load applications");
@@ -506,10 +510,19 @@ export function ApplicationsView({
   // The open detail dialog always reflects the freshest application data
   const detailApp = detailAppId ? (apps ?? []).find((a) => a.id === detailAppId) ?? null : null;
 
-  const filtered = useMemo(
-    () => (apps ?? []).filter((a) => (jobFilter === "all" ? true : a.jobId === jobFilter)),
-    [apps, jobFilter]
-  );
+  // jobs under the chosen classification (a class includes everything below it)
+  const shownJobs = useMemo(() => {
+    if (!categoryFilter || !catIndex) return jobs;
+    const ids = descendantIds(categoryFilter, catIndex);
+    return jobs.filter((j) => !!j.categoryId && ids.has(j.categoryId));
+  }, [jobs, categoryFilter, catIndex]);
+
+  const filtered = useMemo(() => {
+    const allowed = new Set(shownJobs.map((j) => j.id));
+    return (apps ?? []).filter((a) =>
+      jobFilter !== "all" ? a.jobId === jobFilter : categoryFilter ? allowed.has(a.jobId) : true
+    );
+  }, [apps, jobFilter, categoryFilter, shownJobs]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -565,6 +578,14 @@ export function ApplicationsView({
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <CategoryFilter
+          value={categoryFilter}
+          onChange={(id) => {
+            setCategoryFilter(id);
+            setJobFilter("all");
+          }}
+          index={catIndex}
+        />
         <div className="w-full sm:w-72">
           <Select value={jobFilter} onValueChange={setJobFilter}>
             <SelectTrigger aria-label={t("Filter by job")}>
@@ -572,7 +593,7 @@ export function ApplicationsView({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("All jobs")}</SelectItem>
-              {jobs.map((j) => (
+              {shownJobs.map((j) => (
                 <SelectItem key={j.id} value={j.id}>
                   {j.title}
                 </SelectItem>
