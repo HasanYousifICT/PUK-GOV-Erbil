@@ -4,7 +4,7 @@ import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { Check, Copy, Eye, EyeOff, KeyRound, Loader2, MoreHorizontal, Palette, Phone, Printer, Search, Trash2, UserPlus, UsersRound, Wand2, X } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Badge } from "@/components/ui/badge";
-import { PasswordInput, ShowPasswordDialog } from "@/components/password-input";
+import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -343,7 +343,6 @@ function AccountDetailsDialog({
   onClose,
   onChanged,
   onReset,
-  onSee,
   onDelete,
   onOpenOther,
 }: {
@@ -352,7 +351,6 @@ function AccountDetailsDialog({
   onClose: () => void;
   onChanged: () => void;
   onReset: (a: CandidateAccount) => void;
-  onSee: (a: CandidateAccount) => void;
   onDelete: (a: CandidateAccount) => void;
   onOpenOther: (id: string) => void;
 }) {
@@ -467,9 +465,6 @@ function AccountDetailsDialog({
             <DialogFooter className="gap-2 sm:justify-between">
               {canEdit ? (
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" onClick={() => onSee(a)}>
-                    <Eye className="me-1.5 h-4 w-4" /> {t("See password")}
-                  </Button>
                   <Button type="button" variant="outline" onClick={() => onReset(a)}>
                     <KeyRound className="me-1.5 h-4 w-4" /> {t("Reset password")}
                   </Button>
@@ -507,7 +502,6 @@ export function CandidateAccessSettings({ canEdit = true, openId }: { canEdit?: 
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [resetting, setResetting] = useState<CandidateAccount | null>(null);
-  const [seeing, setSeeing] = useState<CandidateAccount | null>(null);
   const [deleting, setDeleting] = useState<CandidateAccount | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [detailsId, setDetailsId] = useState<string | null>(null);
@@ -685,9 +679,6 @@ export function CandidateAccessSettings({ canEdit = true, openId }: { canEdit?: 
                     </DropdownMenuItem>
                     {canEdit && (
                       <>
-                        <DropdownMenuItem onClick={() => setSeeing(a)}>
-                          <Eye className="me-2 h-4 w-4" /> {t("See password")}
-                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setResetting(a)}>
                           <KeyRound className="me-2 h-4 w-4" /> {t("Reset password")}
                         </DropdownMenuItem>
@@ -711,7 +702,6 @@ export function CandidateAccessSettings({ canEdit = true, openId }: { canEdit?: 
         canEdit={canEdit}
         onClose={() => setDetailsId(null)}
         onChanged={load}
-        onSee={(a) => setSeeing(a)}
         onReset={(a) => {
           setDetailsId(null);
           setResetting(a);
@@ -721,13 +711,6 @@ export function CandidateAccessSettings({ canEdit = true, openId }: { canEdit?: 
           setDeleting(a);
         }}
         onOpenOther={setDetailsId}
-      />
-      <ShowPasswordDialog
-        open={!!seeing}
-        title={t("Password of {name}", { name: seeing?.username ?? seeing?.phone ?? "" })}
-        subtitle={seeing?.fullName}
-        load={() => apiClient.getCandidatePassword(seeing!.id)}
-        onClose={() => setSeeing(null)}
       />
       <ResetDialog account={resetting} onClose={() => setResetting(null)} />
       <ConfirmDialog

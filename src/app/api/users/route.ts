@@ -1,4 +1,3 @@
-import { sealPassword } from "@/lib/vault";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { ApiError, handle, json, readJson, requireAdmin, str } from "@/lib/api";
@@ -93,7 +92,6 @@ export async function POST(req: Request) {
         phoneKey: phoneKey(rawPhone),
         permissions: JSON.stringify(permissions),
         password: await hashPassword(password),
-        passwordVault: sealPassword(password),
       },
       select: userSelect,
     });

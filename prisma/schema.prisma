@@ -15,7 +15,6 @@ model User {
   name      String
   email     String   @unique
   password  String
-  passwordVault String @default("") // encrypted copy so an administrator can look it up (see lib/vault.ts)
   role      String   @default("recruiter") // admin | recruiter
   phone     String?  // as typed (cleaned)
   phoneKey  String?  @unique // canonical phone digits: guarantees one account per phone number
@@ -179,7 +178,6 @@ model CandidateAccount {
   id           String   @id @default(cuid())
   username     String?  @unique // optional: the candidate can also sign in with the phone number
   passwordHash String
-  passwordVault String @default("") // encrypted copy so an administrator can look it up (see lib/vault.ts)
   code         String   @unique // unique candidate code, shown read-only on the application form
   fullName     String   @default("") // optional: pre-fills the application form
   email        String   @default("") // optional: pre-fills the application form

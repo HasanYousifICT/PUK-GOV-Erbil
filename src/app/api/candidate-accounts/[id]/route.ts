@@ -1,4 +1,3 @@
-import { sealPassword } from "@/lib/vault";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { ApiError, handle, json, readJson, requireLevel, str } from "@/lib/api";
@@ -31,7 +30,6 @@ export async function PUT(req: Request, { params }: Ctx) {
       const p = str(body.password);
       if (p.length < 6) throw new ApiError(400, "Password must be at least 6 characters");
       data.passwordHash = await hashPassword(p);
-      data.passwordVault = sealPassword(p);
     }
     if (body.username !== undefined) {
       const u = str(body.username).trim().toLowerCase();

@@ -4,7 +4,6 @@
 // module in commercial versions behind the same interface.
 
 import bcrypt from "bcryptjs";
-import { sealPassword } from "@/lib/vault";
 import { db } from "@/lib/db";
 import { createSessionToken, hashPassword, SESSION_SELECT, sessionCookieHeader, toSessionUser } from "@/lib/auth";
 import { ApiError, handle, json, readJson, str } from "@/lib/api";
@@ -42,7 +41,7 @@ export async function POST(req: Request) {
 
     const passwordHash = await hashPassword(password);
     const user = await db.user.create({
-      data: { name, email, password: passwordHash, passwordVault: sealPassword(password), role: "admin" },
+      data: { name, email, password: passwordHash, role: "admin" },
       select: SESSION_SELECT,
     });
 
