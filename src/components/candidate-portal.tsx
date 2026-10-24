@@ -9,6 +9,8 @@ import { ApplyView } from "@/components/apply-view";
 import { CvDocument } from "@/components/cv-document";
 import { apiClient, Candidate, PortalData } from "@/lib/client";
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
+import { cvFileName, downloadPdfOrPrint } from "@/lib/pdf-export";
+import { toast } from "@/lib/notify";
 import { useOrg } from "@/lib/org-context";
 
 function CandidateLogin({ onBack, onLoggedIn }: { onBack: () => void; onLoggedIn: () => void }) {
@@ -84,6 +86,7 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
   const [justSent, setJustSent] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -139,16 +142,16 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
     );
   }
 
-  /** Download the CV: the browser's print window with the CV only; choose "Save as PDF". */
-  function downloadCv() {
-    const before = document.title;
-    document.title = `CV - ${candidate?.name ?? ""} - ${data?.account.code ?? ""}`.trim();
-    const restore = () => {
-      document.title = before;
-      window.removeEventListener("afterprint", restore);
-    };
-    window.addEventListener("afterprint", restore);
-    window.print();
+  /** Download the CV as a real PDF file (saved on the device); the print window is only a fallback. */
+  async function downloadCv() {
+    setPdfBusy(true);
+    try {
+      const name = cvFileName({ name: candidate?.name, code: data?.account.code, phone: candidate?.phone || data?.account.phone });
+      const ok = await downloadPdfOrPrint(document.getElementById("cv-print-root"), name);
+      if (ok) toast.success("Your CV has been downloaded");
+    } finally {
+      setPdfBusy(false);
+    }
   }
 
   return (
@@ -161,17 +164,14 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <LanguageSwitcher />
-            <Button size="sm" onClick={downloadCv}>
-              <Download className="me-1.5 h-4 w-4" /> {t("Download CV (PDF)")}
+            <Button size="sm" onClick={downloadCv} disabled={pdfBusy}>
+              {pdfBusy ? <Loader2 className="me-1.5 h-4 w-4 animate-spin" /> : <Download className="me-1.5 h-4 w-4" />} {t("Download CV (PDF)")}
             </Button>
             <Button variant="outline" size="sm" onClick={signOut}>
               <LogOut className="me-1.5 h-4 w-4" /> {t("Sign out")}
             </Button>
           </div>
         </div>
-        <p className="mb-3 text-xs text-muted-foreground print:hidden">
-          {t("“Download CV” opens the save window of your browser. Choose “Save as PDF” as the printer.")}
-        </p>
         {justSent && (
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 print:hidden">
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
@@ -181,6 +181,7 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
             </div>
           </div>
         )}
+        <div id="cv-print-root">
         <CvDocument
           candidate={candidate}
           fields={data.fields}
@@ -189,6 +190,7 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
           logoUrl={org.logoUrl}
           orgName={org.name}
         />
+        </div>
       </div>
     </div>
   );

@@ -895,4 +895,6 @@ export const ckb: Record<string, string> = {
   "This password was set before this feature existed, so it cannot be shown. Use “Reset password” once; after that it can be shown here.": "ئەم وشەی نهێنییە پێش ئەم تایبەتمەندییە دانراوە، بۆیە ناتوانرێت پیشان بدرێت. جارێک «ڕێکخستنەوەی وشەی نهێنی» بەکاربهێنە؛ دوای ئەوە لێرە پیشان دەدرێت.",
   "Candidate access not found": "دەستگەیشتنی کاندید نەدۆزرایەوە",
   "Your profile has been submitted and can no longer be edited": "پرۆفایلەکەت نێردراوە و چیتر ناتوانرێت دەستکاری بکرێت",
+  "Your CV has been downloaded": "CVـەکەت داگیرا",
+  "Download PDF": "داگرتنی PDF",
 };
