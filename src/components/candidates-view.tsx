@@ -52,6 +52,7 @@ import {
 import { NavState } from "@/components/app-shell";
 import { CandidateFormDialog } from "@/components/candidate-form-dialog";
 import { CandidateFilterPanel } from "@/components/candidate-filter-panel";
+import { Pager } from "@/components/pager";
 import { BulkAddToJobDialog } from "@/components/bulk-add-dialog";
 import { CustomFieldValue, useCandidateFields, useCandidateSections } from "@/components/candidate-fields";
 import { activeFilterCount, CandidateFilters } from "@/lib/candidate-filters";
@@ -125,6 +126,9 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
   const { t } = useI18n();
   const canEdit = useCan("candidates", "edit");
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -133,7 +137,6 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [filters, setFilters] = useState<CandidateFilters>({});
   const [showFilters, setShowFilters] = useState(false);
-  const [jobs, setJobs] = useState<Job[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
   const [accessFor, setAccessFor] = useState<Candidate | null>(null);
@@ -142,36 +145,40 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
   const filterCount = activeFilterCount(filters);
   const filtersKey = JSON.stringify(filters);
 
-  useEffect(() => {
-    apiClient.listJobs().then(setJobs).catch(() => setJobs([]));
-  }, []);
-
   const load = useCallback(async () => {
     try {
       const f = JSON.parse(filtersKey) as CandidateFilters;
-      const rows = await apiClient.listCandidates(query.trim() || undefined, filterCount > 0 ? f : undefined);
-      setCandidates(rows);
-      // keep only selected candidates that are still visible
-      setSelected((prev) => {
-        const visible = new Set(rows.map((r) => r.id));
-        const next = new Set([...prev].filter((id) => visible.has(id)));
-        return next.size === prev.size ? prev : next;
-      });
+      const res = await apiClient.listCandidates(query.trim() || undefined, filterCount > 0 ? f : undefined, page, PAGE_SIZE);
+      setCandidates(res.items);
+      setTotal(res.total);
+      // the last page can disappear (deleted rows / narrower filter): step back
+      if (res.items.length === 0 && res.total > 0 && page > 1) setPage(Math.max(1, Math.ceil(res.total / PAGE_SIZE)));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load candidates");
     }
-  }, [query, filtersKey, filterCount]);
+  }, [query, filtersKey, filterCount, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, filtersKey]);
 
   useEffect(() => {
     const t = setTimeout(load, query || filterCount ? 300 : 0);
     return () => clearTimeout(t);
   }, [load, query, filterCount]);
 
-  const allSelected = !!candidates?.length && selected.size === candidates.length;
-  const someSelected = selected.size > 0 && !allSelected;
+  const allSelected = !!candidates?.length && candidates.every((c) => selected.has(c.id));
+  const someSelected = !allSelected && !!candidates?.some((c) => selected.has(c.id));
   const toggleAll = () =>
-    setSelected(allSelected || !candidates ? new Set() : new Set(candidates.map((c) => c.id)));
+    setSelected((prev) => {
+      const n = new Set(prev);
+      for (const c of candidates ?? []) {
+        if (allSelected) n.delete(c.id);
+        else n.add(c.id);
+      }
+      return n;
+    });
   const toggleOne = (id: string) =>
     setSelected((prev) => {
       const n = new Set(prev);
@@ -245,7 +252,7 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
         )}
       </div>
 
-      {showFilters && <CandidateFilterPanel filters={filters} onChange={setFilters} jobs={jobs} />}
+      {showFilters && <CandidateFilterPanel filters={filters} onChange={setFilters} />}
 
       {selected.size > 0 && (
         <div className="sticky top-2 z-10 flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2.5 shadow-sm">
@@ -433,6 +440,7 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
               </div>
             ))}
           </div>
+          <Pager page={page} pageSize={PAGE_SIZE} total={total} onPage={setPage} />
         </>
       )}
 
@@ -448,11 +456,7 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
         open={bulkOpen}
         onOpenChange={setBulkOpen}
         candidateIds={[...selected]}
-        jobs={jobs}
-        onDone={() => {
-          load();
-          apiClient.listJobs().then(setJobs).catch(() => {});
-        }}
+        onDone={load}
         onOpenBoard={() => onNavigate({ view: "applications" })}
       />
       <ConfirmDialog

@@ -1,5 +1,7 @@
 "use client";
+import { JobPicker } from "@/components/job-picker";
 
+import { Input } from "@/components/ui/input";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
@@ -201,6 +203,8 @@ function DraggableCard(props: {
 function KanbanColumn({
   stage,
   apps,
+  total,
+  onLoadMore,
   onView,
   onSchedule,
   onMove,
@@ -208,6 +212,8 @@ function KanbanColumn({
 }: {
   stage: string;
   apps: Application[];
+  total: number;
+  onLoadMore: () => void;
   onView: (app: Application) => void;
   onSchedule: (app: Application) => void;
   onMove: (app: Application, stage: string) => void;
@@ -244,7 +250,7 @@ function KanbanColumn({
               STAGE_STYLES[stage] ?? "bg-slate-100 text-slate-600 border-slate-200"
             )}
           >
-            {apps.length}
+            {total}
           </span>
         </div>
       </div>
@@ -254,7 +260,7 @@ function KanbanColumn({
           "flex max-h-[calc(100vh-320px)] min-h-[120px] flex-1 flex-col gap-2 overflow-y-auto p-2 thin-scrollbar",
           isOver && "bg-sky-50/60 ring-2 ring-inset ring-sky-300 rounded-b-xl"
         )}
-        aria-label={t("{stage} column with {n} applications", { stage: t(stage), n: apps.length })}
+        aria-label={t("{stage} column with {n} applications", { stage: t(stage), n: total })}
       >
         {apps.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed py-8 text-center text-xs text-muted-foreground">
@@ -271,6 +277,11 @@ function KanbanColumn({
               onRemove={() => onRemove(app)}
             />
           ))
+        )}
+        {apps.length < total && (
+          <Button variant="ghost" size="sm" className="shrink-0" onClick={onLoadMore}>
+            {t("Load more")} ({total - apps.length})
+          </Button>
         )}
       </div>
     </div>
@@ -486,7 +497,6 @@ export function ApplicationsView({
   const [apps, setApps] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [jobFilter, setJobFilter] = useState("all");
-  const [jobs, setJobs] = useState<{ id: string; title: string; categoryId: string | null }[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const { index: catIndex } = useCategories();
   const [addOpen, setAddOpen] = useState(false);
@@ -494,35 +504,57 @@ export function ApplicationsView({
   const [scheduleFor, setScheduleFor] = useState<Application | null>(null);
   const [dragApp, setDragApp] = useState<Application | null>(null);
 
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [search, setSearch] = useState("");
+  const [searchKey, setSearchKey] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setSearchKey(search.trim()), 300);
+    return () => clearTimeout(id);
+  }, [search]);
+
   const load = useCallback(async () => {
     try {
-      const [applications, allJobs] = await Promise.all([apiClient.listApplications(), apiClient.listJobs()]);
-      setApps(applications);
-      setJobs(allJobs.map((j) => ({ id: j.id, title: j.title, categoryId: j.categoryId ?? null })));
+      const res = await apiClient.listBoard({
+        jobId: jobFilter !== "all" ? jobFilter : undefined,
+        categoryId: categoryFilter ?? undefined,
+        q: searchKey || undefined,
+      });
+      setApps(res.items);
+      setCounts(res.counts);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load applications");
     }
-  }, []);
+  }, [jobFilter, categoryFilter, searchKey]);
 
   useLoadEffect(load);
+
+  /** Append the next batch of one column. */
+  async function loadMore(stage: string) {
+    try {
+      const have = (apps ?? []).filter((a) => a.stage === stage).length;
+      const res = await apiClient.listBoard({
+        jobId: jobFilter !== "all" ? jobFilter : undefined,
+        categoryId: categoryFilter ?? undefined,
+        q: searchKey || undefined,
+        stage,
+        offset: have,
+      });
+      setApps((prev) => {
+        const seen = new Set((prev ?? []).map((a) => a.id));
+        return [...(prev ?? []), ...res.items.filter((a) => !seen.has(a.id))];
+      });
+      setCounts(res.counts);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load applications");
+    }
+  }
 
   // The open detail dialog always reflects the freshest application data
   const detailApp = detailAppId ? (apps ?? []).find((a) => a.id === detailAppId) ?? null : null;
 
-  // jobs under the chosen classification (a class includes everything below it)
-  const shownJobs = useMemo(() => {
-    if (!categoryFilter || !catIndex) return jobs;
-    const ids = descendantIds(categoryFilter, catIndex);
-    return jobs.filter((j) => !!j.categoryId && ids.has(j.categoryId));
-  }, [jobs, categoryFilter, catIndex]);
-
-  const filtered = useMemo(() => {
-    const allowed = new Set(shownJobs.map((j) => j.id));
-    return (apps ?? []).filter((a) =>
-      jobFilter !== "all" ? a.jobId === jobFilter : categoryFilter ? allowed.has(a.jobId) : true
-    );
-  }, [apps, jobFilter, categoryFilter, shownJobs]);
+  const filtered = apps ?? [];
+  const totalApps = Object.values(counts).reduce((x: number, y: number) => x + y, 0);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -587,22 +619,17 @@ export function ApplicationsView({
           index={catIndex}
         />
         <div className="w-full sm:w-72">
-          <Select value={jobFilter} onValueChange={setJobFilter}>
-            <SelectTrigger aria-label={t("Filter by job")}>
-              <SelectValue placeholder={t("Filter by job")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("All jobs")}</SelectItem>
-              {shownJobs.map((j) => (
-                <SelectItem key={j.id} value={j.id}>
-                  {j.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <JobPicker compact value={jobFilter === "all" ? "" : jobFilter} categoryId={categoryFilter} onChange={(id) => setJobFilter(id || "all")} />
         </div>
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t("Search by name, phone or e-mail")}
+          aria-label={t("Search by name, phone or e-mail")}
+          className="w-full sm:w-64"
+        />
         <p className="text-sm text-muted-foreground">
-          {t(filtered.length === 1 ? "{n} application" : "{n} applications", { n: filtered.length })}
+          {t(totalApps === 1 ? "{n} application" : "{n} applications", { n: totalApps })}
         </p>
       </div>
 
@@ -615,7 +642,7 @@ export function ApplicationsView({
         </div>
       )}
 
-      {apps && apps.length === 0 && !error && (
+      {apps && apps.length === 0 && totalApps === 0 && !error && !searchKey && jobFilter === "all" && !categoryFilter && (
         <EmptyState
           icon={<ClipboardList className="h-5 w-5" />}
           title={t("No applications yet")}
@@ -628,7 +655,7 @@ export function ApplicationsView({
         />
       )}
 
-      {apps && apps.length > 0 && (
+      {apps && (apps.length > 0 || searchKey || jobFilter !== "all" || categoryFilter) && (
         <DndContext
           sensors={sensors}
           onDragStart={onDragStart}
@@ -642,6 +669,8 @@ export function ApplicationsView({
                   key={stage}
                   stage={stage}
                   apps={filtered.filter((a) => a.stage === stage)}
+                  total={counts[stage] ?? 0}
+                  onLoadMore={() => loadMore(stage)}
                   onView={(app) => setDetailAppId(app.id)}
                   onSchedule={(app) => setScheduleFor(app)}
                   onMove={moveApplication}

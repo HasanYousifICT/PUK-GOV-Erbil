@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { ApiError, handle, json, readJson, requireLevel, str } from "@/lib/api";
@@ -38,7 +39,39 @@ export async function assertPhoneFree(key: string, exceptId?: string) {
 export async function GET(req: Request) {
   return handle(async () => {
     await requireLevel(req, "access", "view");
-    return json(await db.candidateAccount.findMany({ select: accountSelect, orderBy: { createdAt: "desc" } }));
+    const sp = new URL(req.url).searchParams;
+    const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(sp.get("pageSize") ?? "50", 10) || 50));
+    const q = (sp.get("q") ?? "").trim().slice(0, 100);
+    const status = sp.get("status");
+    const phone = sp.get("phone");
+    const sqlite = (process.env.DATABASE_URL ?? "file:").startsWith("file:");
+    const has = (v: string) => (sqlite ? { contains: v } : { contains: v, mode: "insensitive" as const });
+    const and: Prisma.CandidateAccountWhereInput[] = [];
+    if (q) {
+      const digits = q.replace(/\D/g, "");
+      and.push({
+        OR: [
+          { username: has(q) },
+          { fullName: has(q) },
+          { code: has(q) },
+          { email: has(q) },
+          { phone: has(q) },
+          ...(digits.length >= 3 && digits !== q ? [{ phone: { contains: digits } }] : []),
+        ],
+      });
+    }
+    if (status === "Submitted") and.push({ candidateId: { not: null } });
+    if (status === "Draft saved") and.push({ candidateId: null, draftAt: { not: null } });
+    if (status === "Waiting") and.push({ candidateId: null, draftAt: null });
+    if (phone === "with") and.push({ phone: { not: null } }, { phone: { not: "" } });
+    if (phone === "without") and.push({ OR: [{ phone: null }, { phone: "" }] });
+    const where: Prisma.CandidateAccountWhereInput | undefined = and.length ? { AND: and } : undefined;
+    const [total, items] = await Promise.all([
+      db.candidateAccount.count({ where }),
+      db.candidateAccount.findMany({ where, select: accountSelect, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (page - 1) * pageSize, take: pageSize }),
+    ]);
+    return json({ items, total, page, pageSize });
   });
 }
 
@@ -102,7 +135,7 @@ export async function POST(req: Request) {
       select: accountSelect,
     });
     if (candidate) {
-      await db.candidate.update({ where: { id: candidate.id }, data: { code, ...(candidate.phone ? {} : { phone }) } });
+      await db.candidate.update({ where: { id: candidate.id }, data: { code, hasAccess: true, ...(candidate.phone ? {} : { phone }) } });
     }
     return json(account, 201);
   });

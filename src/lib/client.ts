@@ -33,6 +33,9 @@ export type Org = {
   customLogo: boolean;
 };
 
+/** One page of a server-paged list. */
+export type Paged<T> = { items: T[]; total: number; page: number; pageSize: number };
+
 export type CandidateAccount = {
   id: string;
   username: string | null; // optional: the phone number works as a login too
@@ -92,6 +95,8 @@ export type JobTitle = {
   titleCkb: string;
   jobCount?: number;
 };
+
+export type JobLite = { id: string; title: string; location: string; status: string; categoryId: string | null };
 
 export type Job = {
   id: string;
@@ -281,9 +286,9 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-const qs = (params: Record<string, string | undefined>) => {
+const qs = (params: Record<string, string | number | undefined>) => {
   const sp = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) if (v) sp.set(k, v);
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") sp.set(k, String(v));
   const s = sp.toString();
   return s ? `?${s}` : "";
 };
@@ -304,6 +309,12 @@ export const apiClient = {
 
   /* jobs */
   listJobs: (status?: string) => api<Job[]>(`/api/jobs${qs({ status })}`),
+  /** One page of jobs (server-side search, status and classification filters). */
+  listJobsPage: (p: { page?: number; pageSize?: number; q?: string; status?: string; categoryId?: string }) =>
+    api<Paged<Job>>(`/api/jobs${qs({ pageSize: 50, ...p, page: p.page ?? 1 })}`),
+  /** A short list for pickers: at most `limit` jobs matching the search. */
+  searchJobs: (p: { q?: string; status?: string; categoryId?: string; limit?: number }) =>
+    api<JobLite[]>(`/api/jobs${qs({ ...p, light: 1 })}`),
   getJob: (id: string) => api<JobDetail>(`/api/jobs/${id}`),
   createJob: (data: Partial<Job>) => api<Job>("/api/jobs", { method: "POST", body: JSON.stringify(data) }),
   updateJob: (id: string, data: Partial<Job>) =>
@@ -333,9 +344,9 @@ export const apiClient = {
     }),
 
   /* candidates */
-  listCandidates: (q?: string, filters?: CandidateFilters) =>
-    api<Candidate[]>(
-      `/api/candidates${qs({ q, filters: filters && Object.keys(filters).length ? JSON.stringify(filters) : undefined })}`
+  listCandidates: (q?: string, filters?: CandidateFilters, page = 1, pageSize = 50) =>
+    api<Paged<Candidate>>(
+      `/api/candidates${qs({ q, page, pageSize, filters: filters && Object.keys(filters).length ? JSON.stringify(filters) : undefined })}`
     ),
   getCandidate: (id: string) => api<CandidateDetail>(`/api/candidates/${id}`),
   createCandidate: (data: CandidatePayload) =>
@@ -425,7 +436,8 @@ export const apiClient = {
   deleteUser: (id: string) => api<{ ok: boolean }>(`/api/users/${id}`, { method: "DELETE" }),
 
   /* candidate accounts (administrators) */
-  listCandidateAccounts: () => api<CandidateAccount[]>("/api/candidate-accounts"),
+  listCandidateAccounts: (p: { page?: number; pageSize?: number; q?: string; status?: string; phone?: string } = {}) =>
+    api<Paged<CandidateAccount>>(`/api/candidate-accounts${qs(p)}`),
   getCandidateAccount: (id: string) => api<CandidateAccount>(`/api/candidate-accounts/${id}`),
   createCandidateAccount: (data: { username?: string; password: string; phone: string; fullName?: string; email?: string; candidateId?: string }) =>
     api<CandidateAccount>("/api/candidate-accounts", { method: "POST", body: JSON.stringify(data) }),
@@ -470,8 +482,12 @@ export const apiClient = {
     api<{ ok: boolean }>("/api/public/apply", { method: "POST", body: JSON.stringify(data) }),
 
   /* applications */
-  listApplications: (filters?: { jobId?: string; candidateId?: string; stage?: string }) =>
+  listApplications: (filters?: { jobId?: string; candidateId?: string; stage?: string; status?: string; q?: string; limit?: number }) =>
     api<Application[]>(`/api/applications${qs({ ...filters })}`),
+  /** The pipeline board: a limited number of applications per stage plus the full count of each stage. */
+  getApplication: (id: string) => api<Application>(`/api/applications/${id}`),
+  listBoard: (f: { jobId?: string; categoryId?: string; q?: string; stage?: string; offset?: number; perStage?: number }) =>
+    api<{ items: Application[]; counts: Record<string, number> }>(`/api/applications${qs({ ...f, board: 1 })}`),
   bulkAddToJob: (candidateIds: string[], jobId: string) =>
     api<BulkAddResult>("/api/applications/bulk", { method: "POST", body: JSON.stringify({ candidateIds, jobId }) }),
   createApplication: (candidateId: string, jobId: string) =>

@@ -1,4 +1,5 @@
 "use client";
+import { JobPicker } from "@/components/job-picker";
 
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
@@ -22,27 +23,18 @@ export function BulkAddToJobDialog({
   open,
   onOpenChange,
   candidateIds,
-  jobs,
   onDone,
   onOpenBoard,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   candidateIds: string[];
-  jobs: Job[];
   onDone: () => void;
   onOpenBoard: () => void;
 }) {
   const { t, locale } = useI18n();
   const { index: catIndex } = useCategories();
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  // only open jobs of the chosen classification (a class includes everything under it)
-  const openJobs = useMemo(() => {
-    const open = jobs.filter((j) => j.status === "Open");
-    if (!categoryId || !catIndex) return [];
-    const ids = descendantIds(categoryId, catIndex);
-    return open.filter((j) => !!j.categoryId && ids.has(j.categoryId));
-  }, [jobs, categoryId, catIndex]);
   const [jobId, setJobId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,23 +115,8 @@ export function BulkAddToJobDialog({
             </div>
             <div className="space-y-2">
               <Label>{t("Job")} *</Label>
-              <Select value={jobId} onValueChange={setJobId} disabled={!categoryId}>
-                <SelectTrigger aria-label={t("Job")}>
-                  <SelectValue placeholder={t("Select a job")} />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {openJobs.map((j) => (
-                    <SelectItem key={j.id} value={j.id}>
-                      {j.title}
-                      {j.categoryId ? ` · ${categoryPathText(j.categoryId, catIndex, locale).split(locale === "ckb" ? " ‹ " : " › ").pop()}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {categoryId && openJobs.length === 0 && (
-                <p className="text-xs text-muted-foreground">{t("There are no open jobs. Create or reopen a job first.")}</p>
-              )}
-            </div>
+              <JobPicker value={jobId} onChange={(id) => setJobId(id)} status="Open" categoryId={categoryId} disabled={!categoryId} />
+                          </div>
             {error && (
               <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {t(error)}
@@ -149,7 +126,7 @@ export function BulkAddToJobDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
                 {t("Cancel")}
               </Button>
-              <Button onClick={submit} disabled={busy || !categoryId || openJobs.length === 0}>
+              <Button onClick={submit} disabled={busy || !categoryId || !jobId}>
                 {busy && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
                 {t("Add to job")}
               </Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Copy, Download, Eye, EyeOff, KeyRound, Loader2, MoreHorizontal, Palette, Phone, Search, Trash2, UserPlus, UsersRound, Wand2, X } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,8 @@ import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog, ErrorState, formatDate, TableSkeleton } from "@/components/shared";
 import { CvDocument, STANDARD_BLOCKS } from "@/components/cv-document";
 import { useCandidateFields, useCandidateSections } from "@/components/candidate-fields";
-import { ApiClientError, apiClient, Candidate, CandidateAccount, CvDesign, DuplicateAccount } from "@/lib/client";
+import { ApiClientError, apiClient, Candidate, CandidateAccount, CvDesign, DuplicateAccount, Paged } from "@/lib/client";
+import { Pager } from "@/components/pager";
 import { CustomData, sectionLabel } from "@/lib/candidate-fields";
 import { useI18n } from "@/lib/i18n";
 import { useOrg } from "@/lib/org-context";
@@ -499,7 +500,9 @@ type StatusFilter = "all" | "Submitted" | "Waiting" | "Draft saved";
 
 export function CandidateAccessSettings({ canEdit = true, openId }: { canEdit?: boolean; openId?: string }) {
   const { t } = useI18n();
-  const [rows, setRows] = useState<CandidateAccount[] | null>(null);
+  const [data, setData] = useState<Paged<CandidateAccount> | null>(null);
+  const [page, setPage] = useState(1);
+  const [opened, setOpened] = useState<CandidateAccount | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [resetting, setResetting] = useState<CandidateAccount | null>(null);
@@ -510,17 +513,24 @@ export function CandidateAccessSettings({ canEdit = true, openId }: { canEdit?: 
   const [status, setStatus] = useState<StatusFilter>("all");
   const [phoneFilter, setPhoneFilter] = useState<"all" | "with" | "without">("all");
 
-  async function load() {
+  const PAGE_SIZE = 50;
+  const load = useCallback(async () => {
     try {
-      setRows(await apiClient.listCandidateAccounts());
+      setData(await apiClient.listCandidateAccounts({ page, pageSize: PAGE_SIZE, q: search.trim(), status: status === "all" ? "" : status, phone: phoneFilter === "all" ? "" : phoneFilter }));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     }
-  }
+  }, [page, search, status, phoneFilter]);
   useEffect(() => {
-    load();
-  }, []);
+    const id = setTimeout(load, search ? 300 : 0);
+    return () => clearTimeout(id);
+  }, [load, search]);
+  // any change of search / filters goes back to the first page
+  useEffect(() => {
+    setPage(1);
+  }, [search, status, phoneFilter]);
+  const rows = data?.items ?? null;
   // arriving from a "Candidate duplicate" link elsewhere: open that access
   useEffect(() => {
     if (openId) setDetailsId(openId);
@@ -528,22 +538,15 @@ export function CandidateAccessSettings({ canEdit = true, openId }: { canEdit?: 
 
   const statusOf = (a: CandidateAccount): StatusFilter => (a.candidateId ? "Submitted" : a.draftAt ? "Draft saved" : "Waiting");
 
-  const shown = useMemo(() => {
-    if (!rows) return [];
-    const q = search.trim().toLowerCase();
-    const qDigits = q.replace(/\D/g, "");
-    return rows.filter((a) => {
-      if (status !== "all" && statusOf(a) !== status) return false;
-      if (phoneFilter === "with" && !a.phone) return false;
-      if (phoneFilter === "without" && a.phone) return false;
-      if (!q) return true;
-      if ([a.username ?? "", a.fullName, a.code, a.email, a.phone ?? ""].some((v) => v.toLowerCase().includes(q))) return true;
-      return qDigits.length >= 3 && (a.phone ?? "").replace(/\D/g, "").includes(qDigits);
-    });
-  }, [rows, search, status, phoneFilter]);
-
+  const shown = rows ?? [];
   const filtering = search.trim() !== "" || status !== "all" || phoneFilter !== "all";
-  const details = rows?.find((a) => a.id === detailsId) ?? null;
+  // the open account may not be on the current page (e.g. arriving from a link), so fetch it on its own
+  useEffect(() => {
+    if (!detailsId) return setOpened(null);
+    if (rows?.some((a) => a.id === detailsId)) return;
+    apiClient.getCandidateAccount(detailsId).then(setOpened).catch(() => setOpened(null));
+  }, [detailsId, rows]);
+  const details = rows?.find((a) => a.id === detailsId) ?? (opened?.id === detailsId ? opened : null);
 
   async function remove() {
     if (!deleting) return;
@@ -581,7 +584,7 @@ export function CandidateAccessSettings({ canEdit = true, openId }: { canEdit?: 
         )}
       </div>
 
-      {rows && rows.length > 0 && (
+      {(rows && rows.length > 0 || filtering) && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <div className="relative min-w-56 flex-1">
             <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -629,19 +632,19 @@ export function CandidateAccessSettings({ canEdit = true, openId }: { canEdit?: 
           )}
         </div>
       )}
-      {rows && rows.length > 0 && (
-        <p className="mt-2 text-xs text-muted-foreground">{t("Showing {n} of {total}", { n: shown.length, total: rows.length })}</p>
+      {data && data.total > 0 && (
+        <p className="mt-2 text-xs text-muted-foreground">{t("Showing {n} of {total}", { n: shown.length, total: data.total })}</p>
       )}
 
       <div className="mt-3">
         {error && <ErrorState message={error} onRetry={load} />}
         {!rows && !error && <TableSkeleton rows={3} />}
-        {rows && rows.length === 0 && (
+        {rows && rows.length === 0 && !filtering && (
           <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
             {t("No candidate access yet. Click “Add candidate access” to create the first one.")}
           </p>
         )}
-        {rows && rows.length > 0 && shown.length === 0 && (
+        {rows && rows.length === 0 && filtering && (
           <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">{t("Nothing matches your search.")}</p>
         )}
         {shown.length > 0 && (
@@ -695,6 +698,7 @@ export function CandidateAccessSettings({ canEdit = true, openId }: { canEdit?: 
             ))}
           </ul>
         )}
+        {data && <Pager page={page} pageSize={PAGE_SIZE} total={data.total} onPage={setPage} />}
       </div>
 
       <AccountDialog open={adding} onClose={() => setAdding(false)} onSaved={load} onOpenDetails={setDetailsId} />

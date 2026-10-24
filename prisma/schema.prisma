@@ -41,6 +41,10 @@ model Job {
   updatedAt      DateTime @updatedAt
   applications   Application[]
   category       JobCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([categoryId])
+  @@index([createdAt])
 }
 
 // Job classification: a self-referencing tree of any depth (ISCO-08 levels
@@ -92,9 +96,15 @@ model Candidate {
   tags         String   @default("") // comma-separated
   customData   String   @default("{}") // JSON map: custom field id -> value
   code         String?  @unique // candidate access code (set when the candidate applies through the portal)
+  hasAccess    Boolean  @default(false) // has a candidate login (kept in step with CandidateAccount; lets the list filter fast)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   applications Application[]
+
+  @@index([createdAt])
+  @@index([name])
+  @@index([phone])
+  @@index([hasAccess])
 }
 
 model Application {
@@ -111,6 +121,9 @@ model Application {
   interviews  Interview[]
 
   @@unique([candidateId, jobId])
+  @@index([jobId, stage])
+  @@index([stage])
+  @@index([appliedAt])
 }
 
 model ApplicationHistory {
@@ -120,6 +133,8 @@ model ApplicationHistory {
   newStage      String
   changedAt     DateTime @default(now())
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
 }
 
 model Interview {
@@ -133,6 +148,9 @@ model Interview {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([date])
 }
 
 // Admin-defined extra fields on the candidate profile (Settings > Candidate fields).
@@ -191,6 +209,8 @@ model CandidateAccount {
   candidateId  String?  @unique // set once the candidate has submitted the application
   submittedAt  DateTime?
   createdAt    DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model CvDesign {

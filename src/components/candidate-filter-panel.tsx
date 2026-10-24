@@ -1,4 +1,5 @@
 "use client";
+import { JobPicker } from "@/components/job-picker";
 
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,11 +49,9 @@ function FilterSelect({
 export function CandidateFilterPanel({
   filters,
   onChange,
-  jobs,
 }: {
   filters: CandidateFilters;
   onChange: (f: CandidateFilters) => void;
-  jobs: Job[];
 }) {
   const { t, locale } = useI18n();
   const typeLabels = useTypeLabels();
@@ -155,12 +154,10 @@ export function CandidateFilterPanel({
             { value: "some", label: t("Applied to at least one job") },
           ]}
         />
-        <FilterSelect
-          label={t("Job")}
-          value={filters.jobId || ANY}
-          onChange={(v) => set({ jobId: v === ANY ? undefined : v, jobMode: filters.jobMode ?? "in" })}
-          options={[{ value: ANY, label: t("Any") }, ...jobs.map((j) => ({ value: j.id, label: j.title }))]}
-        />
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">{t("Job")}</Label>
+          <JobPicker compact value={filters.jobId ?? ""} onChange={(id) => set({ jobId: id || undefined, jobMode: filters.jobMode ?? "in" })} />
+        </div>
         {filters.jobId ? (
           <FilterSelect
             label={t("Job condition")}

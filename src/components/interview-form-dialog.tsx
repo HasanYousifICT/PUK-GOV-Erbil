@@ -44,20 +44,33 @@ export function InterviewFormDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadApplications = useCallback(async () => {
-    try {
-      const apps = await apiClient.listApplications();
-      // Only active (not hired/rejected) applications for scheduling
-      setApplications(apps.filter((a) => a.status === "Active"));
-    } catch {
-      setError("Could not load applications");
-    }
-  }, []);
+  const [appSearch, setAppSearch] = useState("");
+  const [chosen, setChosen] = useState<Application | null>(null);
+  // an application chosen from outside (opened from the board) may not be among the search results
+  useEffect(() => {
+    if (!open || !presetApplicationId) return setChosen(null);
+    apiClient.getApplication(presetApplicationId).then(setChosen).catch(() => setChosen(null));
+  }, [open, presetApplicationId]);
+  // search-as-you-type: the server returns at most 20 matching active applications
+  useEffect(() => {
+    if (!open || interview) return;
+    let live = true;
+    const id = setTimeout(() => {
+      apiClient
+        .listApplications({ status: "Active", q: appSearch.trim() || undefined, limit: 20 })
+        .then((apps) => live && setApplications(apps))
+        .catch(() => live && setError("Could not load applications"));
+    }, appSearch ? 250 : 0);
+    return () => {
+      live = false;
+      clearTimeout(id);
+    };
+  }, [open, interview, appSearch]);
 
   useEffect(() => {
     if (open) {
       setError(null);
-      loadApplications();
+      setAppSearch("");
       setApplicationId(interview?.applicationId ?? presetApplicationId ?? "");
       setInterviewer(interview?.interviewer ?? "");
       setDate(interview?.date ?? "");
@@ -65,7 +78,7 @@ export function InterviewFormDialog({
       setStatus(interview?.status ?? "Scheduled");
       setFeedback(interview?.feedback ?? "");
     }
-  }, [open, interview, presetApplicationId, loadApplications]);
+  }, [open, interview, presetApplicationId]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -115,6 +128,14 @@ export function InterviewFormDialog({
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label>{t("Candidate & Job *")}</Label>
+            {!interview && (
+              <Input
+                value={appSearch}
+                onChange={(e) => setAppSearch(e.target.value)}
+                placeholder={t("Search by name, phone or e-mail")}
+                aria-label={t("Search by name, phone or e-mail")}
+              />
+            )}
             <Select
               value={applicationId}
               onValueChange={setApplicationId}
@@ -124,7 +145,7 @@ export function InterviewFormDialog({
                 <SelectValue placeholder={t("Select candidate & job")} />
               </SelectTrigger>
               <SelectContent className="max-h-64 thin-scrollbar">
-                {applications.map((a) => (
+                {[...(chosen && !applications.some((a) => a.id === chosen.id) ? [chosen] : []), ...applications].map((a) => (
                   <SelectItem key={a.id} value={a.id}>
                     {a.candidate?.name} — {a.job?.title} ({a.stage})
                   </SelectItem>

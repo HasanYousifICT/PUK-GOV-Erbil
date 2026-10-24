@@ -928,4 +928,10 @@ export const ckb: Record<string, string> = {
   "The backup file contains an unsafe path": "فایلی باکئەپ ڕێگایەکی نەگونجاوی تێدایە",
   "This is not an OpenRecruitOS backup (no database inside)": "ئەمە باکئەپی OpenRecruitOS نییە (بنکەی داتای تێدا نییە)",
   "The database inside the backup is not valid": "بنکەی داتای ناو باکئەپەکە دروست نییە",
+  "Load more": "زیاتر پیشان بدە",
+  "Search by name, phone or e-mail": "گەڕان بە ناو، ژمارەی تەلەفۆن یان ئیمەیڵ",
+  "{from}–{to} of {total}": "{from}–{to} لە {total}",
+  "Previous": "پێشوو",
+  "Page {p} of {n}": "لاپەڕە {p} لە {n}",
+  "Next": "دواتر",
 };

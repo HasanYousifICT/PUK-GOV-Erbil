@@ -69,8 +69,10 @@ export async function DELETE(req: Request, { params }: Ctx) {
   return handle(async () => {
     await requireLevel(req, "access", "edit");
     const { id } = await params;
+    const account = await db.candidateAccount.findUnique({ where: { id }, select: { candidateId: true } });
     const r = await db.candidateAccount.deleteMany({ where: { id } });
     if (r.count === 0) throw new ApiError(404, "Account not found");
+    if (account?.candidateId) await db.candidate.updateMany({ where: { id: account.candidateId }, data: { hasAccess: false } });
     return json({ ok: true });
   });
 }

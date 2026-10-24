@@ -1,4 +1,5 @@
 "use client";
+import { Pager } from "@/components/pager";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
@@ -299,14 +300,35 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
   const [deleting, setDeleting] = useState<Job | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
+  const [queryKey, setQueryKey] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setQueryKey(query.trim()), 300);
+    return () => clearTimeout(id);
+  }, [query]);
+  useEffect(() => {
+    setPage(1);
+  }, [queryKey, filter, categoryFilter]);
+
   const load = useCallback(async () => {
     try {
-      setJobs(await apiClient.listJobs());
+      const res = await apiClient.listJobsPage({
+        page,
+        pageSize: PAGE_SIZE,
+        q: queryKey || undefined,
+        status: filter === "all" ? undefined : filter,
+        categoryId: categoryFilter ?? undefined,
+      });
+      setJobs(res.items);
+      setTotal(res.total);
+      if (res.items.length === 0 && res.total > 0 && page > 1) setPage(Math.max(1, Math.ceil(res.total / PAGE_SIZE)));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load jobs");
     }
-  }, []);
+  }, [page, queryKey, filter, categoryFilter]);
 
   useLoadEffect(load);
 
@@ -336,21 +358,7 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
     }
   }
 
-  const filtered = (jobs ?? [])
-    .filter((j) => (filter === "all" ? true : j.status === filter))
-    .filter((j) => {
-      if (!categoryFilter || !catIndex) return true;
-      return !!j.categoryId && descendantIds(categoryFilter, catIndex).has(j.categoryId);
-    })
-    .filter((j) => {
-      const q = query.trim().toLowerCase();
-      if (!q) return true;
-      return (
-        j.title.toLowerCase().includes(q) ||
-        j.location.toLowerCase().includes(q) ||
-        j.skills.toLowerCase().includes(q)
-      );
-    });
+  const filtered = jobs ?? [];
 
   return (
     <div className="space-y-5">
@@ -573,6 +581,7 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
               </div>
             ))}
           </div>
+          <Pager page={page} pageSize={PAGE_SIZE} total={total} onPage={setPage} />
         </>
       )}
 

@@ -52,6 +52,7 @@ export async function POST(req: Request) {
           noticePeriod: cut(body.noticePeriod, 100),
           notes: cut(body.notes, 2000),
           tags: "Candidate portal",
+          hasAccess: true,
           customData: JSON.stringify(customData),
         },
       });

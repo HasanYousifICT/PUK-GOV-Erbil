@@ -1,5 +1,7 @@
 "use client";
+import { JobPicker } from "@/components/job-picker";
 
+import { CandidatePicker } from "@/components/candidate-picker";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, UserPlus } from "lucide-react";
 import { toast } from "@/lib/notify";
@@ -35,32 +37,11 @@ export function AddApplicationDialog({
   const { t, locale } = useI18n();
   const { index: catIndex } = useCategories();
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [pickedName, setPickedName] = useState("");
   const [candidateId, setCandidateId] = useState("");
   const [jobId, setJobId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const [openJobs, allCandidates] = await Promise.all([
-        apiClient.listJobs("Open"),
-        apiClient.listCandidates(),
-      ]);
-      setJobs(openJobs);
-      setCandidates(allCandidates);
-    } catch {
-      setError("Could not load jobs and candidates");
-    }
-  }, []);
-
-  useEffect(() => {
-    if (open) {
-      setError(null);
-      load();
-    }
-  }, [open, load]);
 
   useEffect(() => {
     if (open) {
@@ -69,14 +50,6 @@ export function AddApplicationDialog({
       setCategoryId(null);
     }
   }, [open, defaultCandidateId, defaultJobId]);
-
-  // classification narrows the list of jobs (a class includes everything under it)
-  const shownJobs = useMemo(() => {
-    if (defaultJobId) return jobs; // opened from a job: that job is already fixed
-    if (!categoryId || !catIndex) return [];
-    const ids = descendantIds(categoryId, catIndex);
-    return jobs.filter((j) => !!j.categoryId && ids.has(j.categoryId));
-  }, [jobs, categoryId, catIndex, defaultJobId]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -92,8 +65,7 @@ export function AddApplicationDialog({
     setBusy(true);
     try {
       await apiClient.createApplication(candidateId, jobId);
-      const candidate = candidates.find((c) => c.id === candidateId);
-      toast.success(t("{name} added to pipeline (Applied)", { name: candidate?.name ?? t("Candidate") }));
+            toast.success(t("{name} added to pipeline (Applied)", { name: pickedName || t("Candidate") }));
       onOpenChange(false);
       onCreated?.();
     } catch (err) {
@@ -119,19 +91,7 @@ export function AddApplicationDialog({
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label>{t("Candidate *")}</Label>
-            <Select value={candidateId} onValueChange={setCandidateId}>
-              <SelectTrigger aria-label={t("Select candidate")}>
-                <SelectValue placeholder={t("Select a candidate")} />
-              </SelectTrigger>
-              <SelectContent className="max-h-64 thin-scrollbar">
-                {candidates.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                    {c.email ? ` · ${c.email}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <CandidatePicker value={candidateId} onChange={(id, c) => { setCandidateId(id); setPickedName(c?.name ?? ""); }} />
           </div>
 
           <div className="space-y-2">
@@ -148,23 +108,13 @@ export function AddApplicationDialog({
 
           <div className="space-y-2">
             <Label>{t("Job *")}</Label>
-            <Select value={jobId} onValueChange={setJobId} disabled={!categoryId && !defaultJobId}>
-              <SelectTrigger aria-label={t("Select job")}>
-                <SelectValue placeholder={t("Select an open job")} />
-              </SelectTrigger>
-              <SelectContent className="max-h-64 thin-scrollbar">
-                {shownJobs.map((j) => (
-                  <SelectItem key={j.id} value={j.id}>
-                    {j.title}
-                    {j.categoryId ? ` · ${categoryPathText(j.categoryId, catIndex, locale).split(locale === "ckb" ? " ‹ " : " › ").pop()}` : ""}
-                    {` · ${j.location || t("Any location")}`}
-                  </SelectItem>
-                ))}
-                {(categoryId || defaultJobId) && shownJobs.length === 0 && (
-                  <div className="px-3 py-2 text-sm text-muted-foreground">{t("No open jobs available")}</div>
-                )}
-              </SelectContent>
-            </Select>
+            <JobPicker
+              value={jobId}
+              onChange={(id) => setJobId(id)}
+              status="Open"
+              categoryId={defaultJobId ? null : categoryId}
+              disabled={!categoryId && !defaultJobId}
+            />
           </div>
 
           {error && (

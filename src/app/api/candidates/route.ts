@@ -48,37 +48,62 @@ function parseFilters(raw: string | null): CandidateFilters {
   return filters;
 }
 
-/** GET /api/candidates?q=&filters=<json> — list candidates with application counts */
+const isSqlite = () => (process.env.DATABASE_URL ?? "file:").startsWith("file:");
+/** Case-insensitive "contains" — SQLite LIKE already ignores ASCII case; PostgreSQL needs the mode. */
+const has = (v: string) => (isSqlite() ? { contains: v } : { contains: v, mode: "insensitive" as const });
+
+let accessBackfilled = false;
+/** One-off: mark candidates that already have a login (older data created before the flag existed). */
+async function backfillHasAccess() {
+  if (accessBackfilled) return;
+  accessBackfilled = true;
+  try {
+    await db.$executeRawUnsafe(
+      `UPDATE "Candidate" SET "hasAccess" = ${isSqlite() ? "1" : "true"} WHERE "hasAccess" = ${isSqlite() ? "0" : "false"} AND "id" IN (SELECT "candidateId" FROM "CandidateAccount" WHERE "candidateId" IS NOT NULL)`
+    );
+  } catch {
+    accessBackfilled = false;
+  }
+}
+
+const LIGHT_OMIT = { notes: true, education: true, customData: true } as const;
+
+/** GET /api/candidates?q=&filters=<json>&page=1&pageSize=50 — one page of candidates + total */
 export async function GET(req: Request) {
   return handle(async () => {
     await requireLevel(req, "candidates", "view");
     const url = new URL(req.url);
     const q = url.searchParams.get("q")?.trim();
     const f = parseFilters(url.searchParams.get("filters"));
+    const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get("pageSize") ?? "50", 10) || 50));
 
     const and: Prisma.CandidateWhereInput[] = [];
     if (q) {
       and.push({
         OR: [
-          { name: { contains: q } },
-          { email: { contains: q } },
-          { skills: { contains: q } },
-          { location: { contains: q } },
-          { tags: { contains: q } },
-          { code: { contains: q } },
+          { name: has(q) },
+          { email: has(q) },
+          { phone: has(q) },
+          { skills: has(q) },
+          { location: has(q) },
+          { tags: has(q) },
+          { code: has(q) },
         ],
       });
     }
     if (f.resume === "has") and.push({ resume: { not: "" } });
     if (f.resume === "none") and.push({ resume: "" });
     if (f.access) {
-      const linked = (await db.candidateAccount.findMany({ where: { candidateId: { not: null } }, select: { candidateId: true } }))
-        .map((a) => a.candidateId)
-        .filter((x): x is string => !!x);
-      and.push(f.access === "has" ? { id: { in: linked } } : { id: { notIn: linked } });
+      await backfillHasAccess();
+      and.push({ hasAccess: f.access === "has" });
     }
     if (f.from) and.push({ createdAt: { gte: new Date(`${f.from}T00:00:00.000Z`) } });
     if (f.to) and.push({ createdAt: { lte: new Date(`${f.to}T23:59:59.999Z`) } });
+    if (f.location) and.push({ location: has(f.location) });
+    if (f.skills) {
+      for (const term of f.skills.split(",").map((x) => x.trim()).filter(Boolean)) and.push({ skills: has(term) });
+    }
 
     if (f.jobId) {
       if (f.jobMode === "notIn") and.push({ applications: { none: { jobId: f.jobId } } });
@@ -88,49 +113,59 @@ export async function GET(req: Request) {
       if (f.applied === "some" && !f.stage) and.push({ applications: { some: {} } });
       if (f.stage) and.push({ applications: { some: { stage: f.stage } } });
     }
-
-    let candidates = await db.candidate.findMany({
-      where: and.length ? { AND: and } : undefined,
-      orderBy: { createdAt: "desc" },
-      include: { _count: { select: { applications: true } } },
-    });
-
-    // Case-insensitive text filters run here so they behave the same on SQLite and PostgreSQL.
-    if (f.location) {
-      const loc = f.location.toLowerCase();
-      candidates = candidates.filter((c) => c.location.toLowerCase().includes(loc));
-    }
-    if (f.skills) {
-      const terms = f.skills
-        .split(",")
-        .map((s) => s.trim().toLowerCase())
-        .filter(Boolean);
-      if (terms.length) {
-        candidates = candidates.filter((c) => {
-          const have = c.skills.toLowerCase();
-          return terms.every((t) => have.includes(t));
-        });
-      }
-    }
+    const where: Prisma.CandidateWhereInput | undefined = and.length ? { AND: and } : undefined;
+    const orderBy: Prisma.CandidateOrderByWithRelationInput[] = [{ createdAt: "desc" }, { id: "desc" }];
+    const counts = { _count: { select: { applications: true } } };
 
     const active = (f.custom ?? []).filter(isCustomFilterActive);
     const std = active.filter((c) => isStdField(c.fieldId));
-    if (std.length) {
-      candidates = candidates.filter((c) => std.every((flt) => matchesStdFilter(c as unknown as Record<string, unknown>, flt)));
-    }
     const custom = active.filter((c) => !isStdField(c.fieldId));
+    let usable: CustomFilter[] = [];
+    let byId = new Map<string, Awaited<ReturnType<typeof loadFields>>[number]>();
     if (custom.length) {
-      const fields = await loadFields();
-      const byId = new Map(fields.map((x) => [x.id, x]));
-      const usable = custom.filter((c) => byId.has(c.fieldId));
-      if (usable.length) {
-        candidates = candidates.filter((c) => {
-          const data = parseCustomData(c.customData);
-          return usable.every((flt) => matchesCustomFilter(data, byId.get(flt.fieldId)!, flt));
-        });
-      }
+      byId = new Map((await loadFields()).map((x) => [x.id, x]));
+      usable = custom.filter((c) => byId.has(c.fieldId));
     }
-    return json(await withAccess(candidates));
+
+    // Fast path: everything was filtered in SQL, so just read one page.
+    if (!std.length && !usable.length) {
+      const [total, items] = await Promise.all([
+        db.candidate.count({ where }),
+        db.candidate.findMany({ where, orderBy, skip: (page - 1) * pageSize, take: pageSize, omit: LIGHT_OMIT, include: counts }),
+      ]);
+      return json({ items: await withAccess(items), total, page, pageSize });
+    }
+
+    // Slow path (filters on custom/profile fields stored as JSON): scan in batches, never loading everything at once.
+    const from = (page - 1) * pageSize;
+    const items: Awaited<ReturnType<typeof db.candidate.findMany>> = [];
+    let total = 0;
+    let cursor: string | undefined;
+    for (;;) {
+      const batch = await db.candidate.findMany({
+        where,
+        orderBy,
+        take: 500,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        include: counts,
+      });
+      if (!batch.length) break;
+      cursor = batch[batch.length - 1].id;
+      for (const c of batch) {
+        if (!std.every((flt) => matchesStdFilter(c as unknown as Record<string, unknown>, flt))) continue;
+        if (usable.length) {
+          const data = parseCustomData(c.customData);
+          if (!usable.every((flt) => matchesCustomFilter(data, byId.get(flt.fieldId)!, flt))) continue;
+        }
+        if (total >= from && items.length < pageSize) {
+          const { notes: _n, education: _e, customData: _c, ...light } = c;
+          items.push(light as typeof c);
+        }
+        total++;
+      }
+      if (batch.length < 500) break;
+    }
+    return json({ items: await withAccess(items), total, page, pageSize });
   });
 }
 
