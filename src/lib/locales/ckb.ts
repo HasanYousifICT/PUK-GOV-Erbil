@@ -904,4 +904,12 @@ export const ckb: Record<string, string> = {
   "Copyright": "مافی چاپ",
   "Shown as a thin line at the bottom of every page. Leave a field empty to hide it.": "وەک هێڵێکی تەنک لە خوارەوەی هەموو پەڕەکان پیشان دەدرێت. خانەیەک بەتاڵ بهێڵەرەوە بۆ شاردنەوەی.",
   "Name, version and copyright shown at the bottom of every page.": "ناو، وەشان و مافی چاپ کە لە خوارەوەی هەموو پەڕەکان پیشان دەدرێن.",
+  "Backup": "باکئەپ",
+  "Download backup": "داگرتنی باکئەپ",
+  "Download all data and files as one ZIP.": "هەموو داتا و فایلەکان وەک یەک ZIP دابگرە.",
+  "Download one ZIP file with the whole database (candidates, jobs, accounts, settings) and every uploaded file (CVs, photos, documents). Keep a copy on your own device and repeat it regularly.": "یەک فایلی ZIP دابگرە کە هەموو بنکەی داتا (کاندیدەکان، کارەکان، هەژمارەکان، ڕێکخستنەکان) و هەموو فایلە بارکراوەکان (CV، وێنە، بەڵگەنامە) لەخۆدەگرێت. لەسەر ئامێرەکەی خۆت کۆپییەک بهێڵەرەوە و بەردەوام دووبارەی بکەرەوە.",
+  "Last downloaded from this browser: {date}": "دوایین داگرتن لەم وێبگەڕە: {date}",
+  "Not downloaded from this browser yet": "هێشتا لەم وێبگەڕە داگیراو نییە",
+  "The file contains personal data of candidates. Keep it private and never share it.": "فایلەکە زانیاری کەسیی کاندیدەکانی تێدایە. نهێنی بیهێڵەرەوە و هەرگیز بڵاوی مەکەرەوە.",
+  "Automatic backup works with the built-in SQLite database only": "باکئەپی خۆکار تەنها لەگەڵ بنکەی داتای SQLite ی ناوخۆیی کار دەکات",
 };
