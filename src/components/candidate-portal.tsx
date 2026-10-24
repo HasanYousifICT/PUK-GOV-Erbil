@@ -1,8 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle2, Download, Loader2, LogOut, Pencil, UserRound } from "lucide-react";
-import { toast } from "@/lib/notify";
+import { ArrowLeft, CheckCircle2, Download, Loader2, LogOut, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,7 +84,6 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
   const [justSent, setJustSent] = useState(false);
-  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -153,26 +151,6 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
     window.print();
   }
 
-  if (editing) {
-    return (
-      <ApplyView
-        onBack={() => setEditing(false)}
-        backLabel={t("Back to my CV")}
-        portal={{
-          data,
-          existing: candidate,
-          onSubmitted: (c) => {
-            setCandidate(c);
-            setEditing(false);
-            setJustSent(false);
-            toast.success("Your profile is saved");
-          },
-          onCancel: () => setEditing(false),
-        }}
-      />
-    );
-  }
-
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-sky-100/40 via-background to-background px-4 py-8">
       <div className="mx-auto w-full max-w-3xl">
@@ -183,9 +161,6 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <LanguageSwitcher />
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-              <Pencil className="me-1.5 h-4 w-4" /> {t("Edit my profile")}
-            </Button>
             <Button size="sm" onClick={downloadCv}>
               <Download className="me-1.5 h-4 w-4" /> {t("Download CV (PDF)")}
             </Button>

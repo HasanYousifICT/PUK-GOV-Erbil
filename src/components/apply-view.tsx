@@ -231,7 +231,7 @@ export function ApplyView({
                 </p>
               </div>
             )}
-            {jobs.length > 0 && !existing && (
+            {jobs.length > 0 && !existing && !portal && (
               <div className="space-y-2">
                 <Label>{t("Position")}</Label>
                 <Select value={jobId} onValueChange={setJobId}>
