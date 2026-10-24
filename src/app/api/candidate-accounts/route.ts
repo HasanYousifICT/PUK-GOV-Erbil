@@ -1,3 +1,4 @@
+import { sealPassword } from "@/lib/vault";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { ApiError, handle, json, readJson, requireLevel, str } from "@/lib/api";
@@ -92,6 +93,7 @@ export async function POST(req: Request) {
       data: {
         username: username || null,
         passwordHash: await hashPassword(password),
+        passwordVault: sealPassword(password),
         code,
         fullName,
         email,

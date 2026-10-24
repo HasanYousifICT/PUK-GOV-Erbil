@@ -171,6 +171,8 @@ export function JobFormDialog({
               onChange={(title) => setForm((f) => ({ ...f, title }))}
             />
           </div>
+          {job && (
+          <>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="job-description">{t("Job Description")}</Label>
             <Textarea
@@ -217,6 +219,8 @@ export function JobFormDialog({
               onChange={(e) => set("salary")(e.target.value)}
             />
           </div>
+          </>
+          )}
           <div className="space-y-2 sm:col-span-2">
             <Label>{t("Job Classification *")}</Label>
             <CategoryPicker

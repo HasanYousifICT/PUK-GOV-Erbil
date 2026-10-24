@@ -72,14 +72,19 @@ export function AddApplicationDialog({
 
   // classification narrows the list of jobs (a class includes everything under it)
   const shownJobs = useMemo(() => {
-    if (!categoryId || !catIndex) return jobs;
+    if (defaultJobId) return jobs; // opened from a job: that job is already fixed
+    if (!categoryId || !catIndex) return [];
     const ids = descendantIds(categoryId, catIndex);
     return jobs.filter((j) => !!j.categoryId && ids.has(j.categoryId));
-  }, [jobs, categoryId, catIndex]);
+  }, [jobs, categoryId, catIndex, defaultJobId]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!categoryId && !defaultJobId) {
+      setError("Please choose a job classification");
+      return;
+    }
     if (!candidateId || !jobId) {
       setError("Please select both a candidate and a job");
       return;
@@ -130,7 +135,7 @@ export function AddApplicationDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>{t("Job classification")}</Label>
+            <Label>{t("Job classification")} *</Label>
             <CategoryPicker
               value={categoryId}
               onChange={(id) => {
@@ -143,7 +148,7 @@ export function AddApplicationDialog({
 
           <div className="space-y-2">
             <Label>{t("Job *")}</Label>
-            <Select value={jobId} onValueChange={setJobId}>
+            <Select value={jobId} onValueChange={setJobId} disabled={!categoryId && !defaultJobId}>
               <SelectTrigger aria-label={t("Select job")}>
                 <SelectValue placeholder={t("Select an open job")} />
               </SelectTrigger>
@@ -155,7 +160,7 @@ export function AddApplicationDialog({
                     {` · ${j.location || t("Any location")}`}
                   </SelectItem>
                 ))}
-                {shownJobs.length === 0 && (
+                {(categoryId || defaultJobId) && shownJobs.length === 0 && (
                   <div className="px-3 py-2 text-sm text-muted-foreground">{t("No open jobs available")}</div>
                 )}
               </SelectContent>

@@ -1,3 +1,4 @@
+import { sealPassword } from "@/lib/vault";
 import { db } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 import { ApiError, handle, json, readJson, requireAuth, str } from "@/lib/api";
@@ -18,7 +19,7 @@ export async function PUT(req: Request) {
     }
     await db.user.update({
       where: { id: session.id },
-      data: { password: await hashPassword(next) },
+      data: { password: await hashPassword(next), passwordVault: sealPassword(next) },
     });
     return json({ ok: true });
   });

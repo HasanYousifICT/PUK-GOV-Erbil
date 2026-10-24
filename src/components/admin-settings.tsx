@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Building2, KeyRound, Loader2, MoreHorizontal, Pencil, Phone, Plus, Search, ShieldCheck, Trash2, Upload, UserCheck, UserPlus, UserX, Users, X } from "lucide-react";
+import { Building2, Eye, KeyRound, Loader2, MoreHorizontal, Pencil, Phone, Plus, Search, ShieldCheck, Trash2, Upload, UserCheck, UserPlus, UserX, Users, X } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { PasswordInput } from "@/components/password-input";
+import { PasswordInput, ShowPasswordDialog } from "@/components/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -488,6 +488,7 @@ export function UsersSettings({ me }: { me: SessionUser }) {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<UserEdit | null>(null);
   const [resetting, setResetting] = useState<ManagedUser | null>(null);
+  const [seeing, setSeeing] = useState<ManagedUser | null>(null);
   const [deleting, setDeleting] = useState<ManagedUser | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [search, setSearch] = useState("");
@@ -686,6 +687,9 @@ export function UsersSettings({ me }: { me: SessionUser }) {
                       <DropdownMenuItem onClick={() => setEditing({ mode: "edit", user: u })}>
                         <Pencil className="me-2 h-4 w-4" /> {t("Edit")}
                       </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSeeing(u)}>
+                        <Eye className="me-2 h-4 w-4" /> {t("See password")}
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setResetting(u)}>
                         <KeyRound className="me-2 h-4 w-4" /> {t("Reset password")}
                       </DropdownMenuItem>
@@ -711,6 +715,13 @@ export function UsersSettings({ me }: { me: SessionUser }) {
       </div>
 
       <UserDialog editing={editing} me={me} onClose={() => setEditing(null)} onSaved={load} />
+      <ShowPasswordDialog
+        open={!!seeing}
+        title={t("Password of {name}", { name: seeing?.name ?? "" })}
+        subtitle={seeing?.email}
+        load={() => apiClient.getUserPassword(seeing!.id)}
+        onClose={() => setSeeing(null)}
+      />
       <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />
       <ConfirmDialog
         open={!!deleting}

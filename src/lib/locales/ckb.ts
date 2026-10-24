@@ -889,4 +889,9 @@ export const ckb: Record<string, string> = {
   "Delete all": "سڕینەوەی هەموو",
   "Delete the whole classification?": "هەموو پۆلێنکردنەکە بسڕدرێتەوە؟",
   "All {n} classes and sub-classes are deleted. Jobs keep existing but become unclassified. This cannot be undone.": "هەموو {n} پۆل و ژێرپۆلەکان دەسڕدرێنەوە. کارەکان دەمێننەوە بەڵام بێ پۆلێنکردن دەبن. ناتوانرێت پاشگەز ببیتەوە.",
+  "See password": "بینینی وشەی نهێنی",
+  "Password of {name}": "وشەی نهێنی {name}",
+  "Could not load the password": "نەتوانرا وشەی نهێنی باربکرێت",
+  "This password was set before this feature existed, so it cannot be shown. Use “Reset password” once; after that it can be shown here.": "ئەم وشەی نهێنییە پێش ئەم تایبەتمەندییە دانراوە، بۆیە ناتوانرێت پیشان بدرێت. جارێک «ڕێکخستنەوەی وشەی نهێنی» بەکاربهێنە؛ دوای ئەوە لێرە پیشان دەدرێت.",
+  "Candidate access not found": "دەستگەیشتنی کاندید نەدۆزرایەوە",
 };

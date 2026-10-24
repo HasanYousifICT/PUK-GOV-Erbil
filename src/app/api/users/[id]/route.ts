@@ -1,3 +1,4 @@
+import { sealPassword } from "@/lib/vault";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { ApiError, handle, json, readJson, requireAdmin, str } from "@/lib/api";
@@ -24,6 +25,7 @@ export async function PUT(req: Request, { params }: Params) {
       name?: string;
       role?: string;
       password?: string;
+      passwordVault?: string;
       phone?: string;
       phoneKey?: string;
       title?: string;
@@ -71,6 +73,7 @@ export async function PUT(req: Request, { params }: Params) {
     if (str(body.password)) {
       if (str(body.password).length < 6) throw new ApiError(400, "Password must be at least 6 characters");
       data.password = await hashPassword(str(body.password));
+      data.passwordVault = sealPassword(str(body.password));
     }
     return json(toManaged(await db.user.update({ where: { id }, data, select: userSelect })));
   });

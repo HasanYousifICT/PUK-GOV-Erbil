@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiClient, BulkAddResult, Job } from "@/lib/client";
 import { useI18n } from "@/lib/i18n";
+import { CategoryPicker, categoryPathText, useCategories } from "@/components/category-picker";
+import { descendantIds } from "@/lib/categories";
 
 export function BulkAddToJobDialog({
   open,
@@ -31,8 +33,16 @@ export function BulkAddToJobDialog({
   onDone: () => void;
   onOpenBoard: () => void;
 }) {
-  const { t } = useI18n();
-  const openJobs = jobs.filter((j) => j.status === "Open");
+  const { t, locale } = useI18n();
+  const { index: catIndex } = useCategories();
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  // only open jobs of the chosen classification (a class includes everything under it)
+  const openJobs = useMemo(() => {
+    const open = jobs.filter((j) => j.status === "Open");
+    if (!categoryId || !catIndex) return [];
+    const ids = descendantIds(categoryId, catIndex);
+    return open.filter((j) => !!j.categoryId && ids.has(j.categoryId));
+  }, [jobs, categoryId, catIndex]);
   const [jobId, setJobId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,12 +51,17 @@ export function BulkAddToJobDialog({
   useEffect(() => {
     if (open) {
       setJobId("");
+      setCategoryId(null);
       setError(null);
       setResult(null);
     }
   }, [open]);
 
   async function submit() {
+    if (!categoryId) {
+      setError("Please choose a job classification");
+      return;
+    }
     if (!jobId) {
       setError("Select a job");
       return;
@@ -96,8 +111,19 @@ export function BulkAddToJobDialog({
         ) : (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>{t("Job")}</Label>
-              <Select value={jobId} onValueChange={setJobId}>
+              <Label>{t("Job classification")} *</Label>
+              <CategoryPicker
+                value={categoryId}
+                onChange={(id) => {
+                  setCategoryId(id);
+                  setJobId("");
+                }}
+                index={catIndex}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t("Job")} *</Label>
+              <Select value={jobId} onValueChange={setJobId} disabled={!categoryId}>
                 <SelectTrigger aria-label={t("Job")}>
                   <SelectValue placeholder={t("Select a job")} />
                 </SelectTrigger>
@@ -105,11 +131,12 @@ export function BulkAddToJobDialog({
                   {openJobs.map((j) => (
                     <SelectItem key={j.id} value={j.id}>
                       {j.title}
+                      {j.categoryId ? ` · ${categoryPathText(j.categoryId, catIndex, locale).split(locale === "ckb" ? " ‹ " : " › ").pop()}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {openJobs.length === 0 && (
+              {categoryId && openJobs.length === 0 && (
                 <p className="text-xs text-muted-foreground">{t("There are no open jobs. Create or reopen a job first.")}</p>
               )}
             </div>
@@ -122,7 +149,7 @@ export function BulkAddToJobDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
                 {t("Cancel")}
               </Button>
-              <Button onClick={submit} disabled={busy || openJobs.length === 0}>
+              <Button onClick={submit} disabled={busy || !categoryId || openJobs.length === 0}>
                 {busy && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
                 {t("Add to job")}
               </Button>

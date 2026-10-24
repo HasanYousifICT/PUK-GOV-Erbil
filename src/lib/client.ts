@@ -426,6 +426,8 @@ export const apiClient = {
   getCandidateAccount: (id: string) => api<CandidateAccount>(`/api/candidate-accounts/${id}`),
   createCandidateAccount: (data: { username?: string; password: string; phone: string; fullName?: string; email?: string; candidateId?: string }) =>
     api<CandidateAccount>("/api/candidate-accounts", { method: "POST", body: JSON.stringify(data) }),
+  getUserPassword: (id: string) => api<{ password: string | null }>(`/api/users/${id}/password`),
+  getCandidatePassword: (id: string) => api<{ password: string | null }>(`/api/candidate-accounts/${id}/password`),
   updateCandidateAccount: (id: string, data: { password?: string; fullName?: string; email?: string; phone?: string; username?: string }) =>
     api<CandidateAccount>(`/api/candidate-accounts/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteCandidateAccount: (id: string) => api<{ ok: boolean }>(`/api/candidate-accounts/${id}`, { method: "DELETE" }),
