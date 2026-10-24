@@ -65,7 +65,7 @@ async function embeddedFontCss(): Promise<string> {
 
 /** Copy every computed style onto the clone (walking both trees together), so it looks the same outside the page. */
 function inlineStyles(src: Element, dst: Element) {
-  const cs = getComputedStyle(src);
+  const cs = (src.ownerDocument.defaultView ?? window).getComputedStyle(src);
   let text = "";
   for (let i = 0; i < cs.length; i++) {
     const name = cs[i];
@@ -203,20 +203,81 @@ function dataUrlToBytes(url: string): Uint8Array {
 
 /* ------------------------------- public ------------------------------- */
 
+/** The CV is always laid out at the width of an A4 page (not at the width of this screen), so every download looks the same. */
+const FRAME_W = 794;
+
+/** Put a copy of `el` (with the page's styles) in a hidden frame of fixed width; returns the copy and a clean-up function. */
+async function layoutInFixedFrame(el: HTMLElement): Promise<{ node: HTMLElement; cleanup: () => void }> {
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = `position:fixed;left:-20000px;top:0;width:${FRAME_W}px;height:1200px;border:0;visibility:hidden;pointer-events:none`;
+  document.body.appendChild(frame);
+  const cleanup = () => frame.remove();
+  try {
+    const doc = frame.contentDocument!;
+    doc.open();
+    doc.write("<!doctype html><html><head><meta charset='utf-8'></head><body></body></html>");
+    doc.close();
+    for (const at of Array.from(document.documentElement.attributes)) doc.documentElement.setAttribute(at.name, at.value);
+    for (const at of Array.from(document.body.attributes)) doc.body.setAttribute(at.name, at.value);
+    // the page's style sheets (and fonts), loaded again inside the frame
+    const loads: Promise<void>[] = [];
+    document.head.querySelectorAll('link[rel="stylesheet"], style').forEach((n) => {
+      const c = n.cloneNode(true) as HTMLElement;
+      if (c instanceof HTMLLinkElement) {
+        loads.push(new Promise((res) => {
+          c.onload = () => res();
+          c.onerror = () => res();
+          setTimeout(res, 8000);
+        }));
+      }
+      doc.head.appendChild(c);
+    });
+    await Promise.all(loads);
+    doc.body.style.cssText = "margin:0;padding:0;background:#fff;min-height:0";
+    const wrap = doc.createElement("div");
+    wrap.style.cssText = `width:${FRAME_W}px;box-sizing:border-box`;
+    const node = el.cloneNode(true) as HTMLElement;
+    // the picture files, inlined so the layout does not wait for them
+    await inlineImages(el, node);
+    node.style.maxWidth = "none";
+    node.style.width = `${FRAME_W}px`;
+    node.style.margin = "0";
+    wrap.appendChild(node);
+    doc.body.appendChild(wrap);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
+    if (doc.fonts?.ready) await doc.fonts.ready;
+    await Promise.all(Array.from(node.querySelectorAll("img")).map((i) => (i.decode ? i.decode().catch(() => undefined) : undefined)));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    return { node, cleanup };
+  } catch (e) {
+    cleanup();
+    throw e;
+  }
+}
+
 /** Draw `el` and save it as `fileName` (.pdf). Throws when the browser cannot do it (the caller can fall back to printing). */
-export async function downloadElementAsPdf(el: HTMLElement, fileName: string): Promise<void> {
+export async function downloadElementAsPdf(source: HTMLElement, fileName: string): Promise<void> {
   if (document.fonts?.ready) await document.fonts.ready;
+  const { node: el, cleanup } = await layoutInFixedFrame(source);
+  try {
+    await renderToPdf(el, fileName);
+  } finally {
+    cleanup();
+  }
+}
+
+async function renderToPdf(el: HTMLElement, fileName: string): Promise<void> {
   const width = Math.ceil(el.getBoundingClientRect().width);
   const height = Math.ceil(el.scrollHeight);
 
   const clone = el.cloneNode(true) as HTMLElement;
   inlineStyles(el, clone);
+  clone.querySelectorAll('[class*="print:hidden"]').forEach((n) => n.remove());
   clone.style.margin = "0";
   clone.style.width = `${width}px`;
   clone.style.height = "auto";
   clone.style.boxShadow = "none";
-  await inlineImages(el, clone); // (both trees must still match here)
-  clone.querySelectorAll('[class*="print:hidden"]').forEach((n) => n.remove());
 
   const fonts = await embeddedFontCss().catch(() => "");
   const xhtml = new XMLSerializer().serializeToString(clone);

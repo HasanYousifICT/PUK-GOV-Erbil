@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { Check, Copy, Download, Eye, EyeOff, KeyRound, Loader2, MoreHorizontal, Palette, Phone, Printer, Search, Trash2, UserPlus, UsersRound, Wand2, X } from "lucide-react";
+import { Check, Copy, Download, Eye, EyeOff, KeyRound, Loader2, MoreHorizontal, Palette, Phone, Search, Trash2, UserPlus, UsersRound, Wand2, X } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Badge } from "@/components/ui/badge";
 import { cvFileName, downloadPdfOrPrint } from "@/lib/pdf-export";
@@ -966,16 +966,12 @@ export function CandidateCvDialog({ candidate, open, onOpenChange }: { candidate
             <div className="flex justify-end print:hidden">
               <Button
                 size="sm"
-                className="me-2"
                 onClick={async () => {
                   const ok = await downloadPdfOrPrint(document.getElementById("cv-admin-root"), cvFileName({ name: candidate.name, code: candidate.code, phone: candidate.phone }));
                   if (ok) toast.success("Your CV has been downloaded");
                 }}
               >
                 <Download className="me-1.5 h-4 w-4" /> {t("Download PDF")}
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => window.print()}>
-                <Printer className="me-1.5 h-4 w-4" /> {t("Print / Save as PDF")}
               </Button>
             </div>
             <div id="cv-admin-root">
