@@ -89,7 +89,23 @@ export async function loadSections(): Promise<CandidateSection[]> {
 
 export async function loadFields(): Promise<CandidateField[]> {
   const rows = await db.candidateField.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] });
-  return rows.map(serializeField);
+  const fields = rows.map(serializeField);
+  // The standard board-form fields configure themselves until an admin saves their own choice
+  // (saving settings stores "configured": true, so turning a behaviour off sticks).
+  const configured = new Map(rows.map((r) => [r.id, /"configured"/.test(r.settings ?? "")]));
+  const dob = fields.find((f) => f.type === "date" && (f.label.trim().toLowerCase() === "date of birth" || f.labelCkb.trim() === "بەرواری لەدایکبوون"));
+  for (const f of fields) {
+    if (configured.get(f.id)) continue;
+    const name = f.label.trim().toLowerCase();
+    if (f.type === "number" && dob && (name === "age (years)" || name === "age" || f.labelCkb.trim() === "تەمەن بەساڵ")) {
+      f.settings = { ...f.settings, ageFrom: dob.id };
+      f.required = false;
+    }
+    if ((f.type === "text" || f.type === "select") && (name === "place of birth (city)" || f.labelCkb.trim() === "شوێنی لەدایکبوون (شار)")) {
+      f.settings = { ...f.settings, toLocation: true };
+    }
+  }
+  return fields;
 }
 
 /** Trim, drop blanks and duplicates; enforce size limits. */

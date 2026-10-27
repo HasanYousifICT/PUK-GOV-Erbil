@@ -35,7 +35,7 @@ export async function PUT(req: Request, { params }: Params) {
     }
     if ("settings" in body) {
       const settings = normalizeSettings(body.settings, existing.type as FieldType, id, await loadFields());
-      data.settings = JSON.stringify(settings);
+      data.settings = JSON.stringify({ ...settings, configured: true });
       if (settings.ageFrom) data.required = false;
     }
     if ("showIf" in body) data.showIf = normalizeShowIf(body.showIf, id, await loadFields());

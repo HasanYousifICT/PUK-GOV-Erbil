@@ -49,7 +49,7 @@ export async function POST(req: Request) {
         options: JSON.stringify(options),
         columnDefs: JSON.stringify(cols?.defs ?? []),
         required: body.required === true && !settings.ageFrom,
-        settings: JSON.stringify(settings),
+        settings: JSON.stringify({ ...settings, configured: true }),
         publicForm: body.publicForm !== false,
         sectionId,
         showIf,
