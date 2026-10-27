@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, str } from "@/lib/api";
+import { locationFromAnswers } from "@/lib/candidate-fields";
 import { loadFields, validateCustomData } from "@/lib/candidate-custom";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
           skills: cut(body.skills, 1000),
           experience: cut(body.experience, 200),
           education: cut(body.education, 500),
-          location: cut(body.location, 200),
+          location: locationFromAnswers(fields, customData) || cut(body.location, 200),
           salary: cut(body.salary, 100),
           noticePeriod: cut(body.noticePeriod, 100),
           notes: cut(body.notes, 2000),

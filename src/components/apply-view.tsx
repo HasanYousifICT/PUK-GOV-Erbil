@@ -307,6 +307,7 @@ export function ApplyView({
                   <div key={f.id} className={f.type === "file" || f.type === "table" || f.type === "longtext" ? "sm:col-span-2" : ""}>
                     <CustomFieldInput
                       field={f}
+                      answers={custom}
                       value={custom[f.id]}
                       upload={(file) => (portal ? apiClient.candidateUpload(file, "attachment") : apiClient.publicUpload(file, "attachment"))}
                       onChange={(v) =>
@@ -344,10 +345,12 @@ export function ApplyView({
                         <Label htmlFor="a-phone">{t("Phone")}</Label>
                         <Input id="a-phone" dir="ltr" value={form.phone} onChange={(e) => set("phone")(e.target.value)} autoComplete="tel" />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="a-loc">{t("Location")}</Label>
-                        <Input id="a-loc" value={form.location} onChange={(e) => set("location")(e.target.value)} />
-                      </div>
+                      {!fields.some((f) => f.settings.toLocation) && (
+                        <div className="space-y-2">
+                          <Label htmlFor="a-loc">{t("Location")}</Label>
+                          <Input id="a-loc" value={form.location} onChange={(e) => set("location")(e.target.value)} />
+                        </div>
+                      )}
                       {personal && renderCustom(personal.fields)}
                       <div className="space-y-2 sm:col-span-2">
                         <Label htmlFor="a-notes">{t("Anything else you'd like us to know")}</Label>

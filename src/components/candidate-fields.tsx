@@ -58,6 +58,7 @@ import {
   CandidateField,
   CandidateSection,
   CustomValue,
+  CustomData,
   fieldLabel,
   groupFields,
   BUILTIN_FIELDS,
@@ -81,6 +82,9 @@ import {
   COLUMN_TYPES,
   MAX_CONDITIONS,
   MAX_TABLE_COLUMNS,
+  FieldSettings,
+  ageParts,
+  formatAge,
 } from "@/lib/candidate-fields";
 import { useI18n } from "@/lib/i18n";
 
@@ -206,6 +210,7 @@ export function CustomFieldInput({
   onChange,
   upload,
   showRequired = true,
+  answers,
 }: {
   field: CandidateField;
   value: CustomValue | undefined;
@@ -214,6 +219,8 @@ export function CustomFieldInput({
   upload?: (file: File) => Promise<{ key: string; name: string }>;
   /** Show the * on required fields (staff screens do not enforce them). */
   showRequired?: boolean;
+  /** All answers of the form (a calculated age field reads the date of birth from here). */
+  answers?: CustomData;
 }) {
   const { t, locale } = useI18n();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -233,6 +240,18 @@ export function CustomFieldInput({
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
     }
+  }
+
+  if (field.settings.ageFrom) {
+    const a = ageParts(answers?.[field.settings.ageFrom]);
+    return (
+      <div className="space-y-2">
+        <Label>{label}</Label>
+        <div className="flex min-h-9 items-center rounded-md border bg-muted/40 px-3 py-2 text-sm" aria-live="polite">
+          {a ? formatAge(a, t) : <span className="text-muted-foreground">{t("Calculated automatically from the date of birth")}</span>}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -486,6 +505,9 @@ function TableInput({
   const cols = field.options.length;
   const defOf = (j: number): ColumnDef => field.columns[j] ?? { type: "text", required: false, options: [] };
   const blank = () => Array.from({ length: cols }, () => "");
+  const single = field.settings.singleRow === true;
+  // a one-row table always shows its row, ready to fill
+  if (single && rows.length === 0) rows = [blank()];
   const setCell = (r: number, c: number, v: string) =>
     onChange(rows.map((row, i) => (i === r ? Array.from({ length: cols }, (_, j) => (j === c ? v : row[j] ?? "")) : row)));
   return (
@@ -503,27 +525,31 @@ function TableInput({
               </div>
             ))}
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0 text-red-600 hover:text-red-600"
-            aria-label={t("Remove")}
-            onClick={() => onChange(rows.filter((_, i) => i !== r))}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {!single && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-red-600 hover:text-red-600"
+              aria-label={t("Remove")}
+              onClick={() => onChange(rows.filter((_, i) => i !== r))}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       ))}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={rows.length >= MAX_TABLE_ROWS}
-        onClick={() => onChange([...rows, blank()])}
-      >
-        <Plus className="me-1.5 h-3.5 w-3.5" /> {t("Add row")}
-      </Button>
+      {!single && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={rows.length >= MAX_TABLE_ROWS}
+          onClick={() => onChange([...rows, blank()])}
+        >
+          <Plus className="me-1.5 h-3.5 w-3.5" /> {t("Add row")}
+        </Button>
+      )}
     </div>
   );
 }
@@ -650,6 +676,7 @@ function FieldFormDialog({
   const [conds, setConds] = useState<ShowIf[]>([]);
   const [match, setMatch] = useState<"all" | "any">("all");
   const [cols, setCols] = useState<ColDraft[]>([]);
+  const [settings, setSettings] = useState<FieldSettings>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -666,6 +693,7 @@ function FieldFormDialog({
       setPublicForm(editing.field.publicForm);
       setSectionId(sections.some((x) => x.id === editing.field.sectionId) ? editing.field.sectionId : sections[0]?.id ?? "");
       setOptionsText(editing.field.options.join("\n"));
+      setSettings(editing.field.settings ?? {});
       setConds(editing.field.showIf?.conds ?? []);
       setMatch(editing.field.showIf?.match ?? "all");
       setCols(
@@ -684,6 +712,7 @@ function FieldFormDialog({
       setPublicForm(true);
       setSectionId(sections[0]?.id ?? "");
       setOptionsText("");
+      setSettings({});
       setConds([]);
       setMatch("all");
       setCols([{ name: "", type: "text", required: false, optionsText: "" }]);
@@ -752,6 +781,7 @@ function FieldFormDialog({
           publicForm,
           sectionId: sid,
           showIf,
+          settings,
           ...(type === "table" ? { columns } : hasList(type) ? { options } : {}),
         });
         toast.success("Field updated");
@@ -764,6 +794,7 @@ function FieldFormDialog({
           publicForm,
           sectionId: sid,
           showIf,
+          settings,
           ...(type === "table" ? { columns } : hasList(type) ? { options } : {}),
         });
         toast.success("Field added");
@@ -826,6 +857,7 @@ function FieldFormDialog({
               />
             </div>
           )}
+          <AutoSettings type={type} settings={settings} onChange={setSettings} dateFields={allFields.filter((f) => f.type === "date" && f.id !== selfId)} />
           <div className="space-y-2">
             <Label>{t("Section")}</Label>
             <Select value={sectionId} onValueChange={setSectionId}>
@@ -857,7 +889,7 @@ function FieldFormDialog({
           </div>
           <ConditionsEditor conds={conds} match={match} onChange={setConds} onMatch={setMatch} parents={condParents} />
           <div className="flex items-center gap-2">
-            <Checkbox id="field-required" checked={required} onCheckedChange={(c) => setRequired(c === true)} />
+            <Checkbox id="field-required" checked={required && !settings.ageFrom} disabled={!!settings.ageFrom} onCheckedChange={(c) => setRequired(c === true)} />
             <Label htmlFor="field-required" className="font-normal">
               {t("Required on the application form")}
             </Label>
@@ -886,6 +918,78 @@ function FieldFormDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/* ---------------------- automatic behaviour of a field ---------------------- */
+
+function AutoSettings({
+  type,
+  settings,
+  dateFields,
+  onChange,
+}: {
+  type: FieldType;
+  settings: FieldSettings;
+  dateFields: CandidateField[];
+  onChange: (s: FieldSettings) => void;
+}) {
+  const { t, locale } = useI18n();
+  if (type === "number") {
+    return (
+      <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+        <Label>{t("Calculate as an age from a date field")}</Label>
+        <Select
+          value={settings.ageFrom ?? NONE}
+          onValueChange={(v) => onChange({ ...settings, ageFrom: v === NONE ? undefined : v })}
+        >
+          <SelectTrigger aria-label={t("Calculate as an age from a date field")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            <SelectItem value={NONE}>{t("No — the person types the number")}</SelectItem>
+            {dateFields.map((f) => (
+              <SelectItem key={f.id} value={f.id}>
+                {fieldLabel(f, locale)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          {t("The age is worked out from today's date and shown in years, months and days. It is never typed or required.")}
+        </p>
+      </div>
+    );
+  }
+  if (type === "text" || type === "select") {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border bg-muted/20 p-3">
+        <Checkbox id="field-to-location" checked={settings.toLocation === true} onCheckedChange={(c) => onChange({ ...settings, toLocation: c === true || undefined })} />
+        <div className="space-y-1">
+          <Label htmlFor="field-to-location" className="font-normal">
+            {t("Use this answer as the candidate's Location")}
+          </Label>
+          <p className="text-xs text-muted-foreground">{t("The Location box is then filled automatically and is not asked for.")}</p>
+        </div>
+      </div>
+    );
+  }
+  if (type === "table") {
+    return (
+      <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+        <Label>{t("Rows")}</Label>
+        <Select value={settings.singleRow ? "one" : "many"} onValueChange={(v) => onChange({ ...settings, singleRow: v === "one" || undefined })}>
+          <SelectTrigger aria-label={t("Rows")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="many">{t("Several rows — add as many as needed")}</SelectItem>
+            <SelectItem value="one">{t("Only one row")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
+  return null;
 }
 
 /* ---------------------- table columns (type + required) ---------------------- */

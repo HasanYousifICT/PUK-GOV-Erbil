@@ -71,6 +71,85 @@ export function parseShowIf(raw: string | null | undefined): ShowRule | null {
   return null;
 }
 
+/** Per-field options beyond the type. */
+export type FieldSettings = {
+  /** number field: calculated as the age from this date field (never typed, never required) */
+  ageFrom?: string;
+  /** text / dropdown field: its answer is copied into the candidate's Location */
+  toLocation?: boolean;
+  /** table field: only one row can be added */
+  singleRow?: boolean;
+};
+
+export function parseFieldSettings(raw: string | null | undefined): FieldSettings {
+  try {
+    const v = JSON.parse(raw || "{}");
+    if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+    const out: FieldSettings = {};
+    if (typeof v.ageFrom === "string" && v.ageFrom) out.ageFrom = v.ageFrom;
+    if (v.toLocation === true) out.toLocation = true;
+    if (v.singleRow === true) out.singleRow = true;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Years, months and days between a birth date (YYYY-MM-DD) and today; null when the date is missing or in the future. */
+export function ageParts(dob: unknown, now: Date = new Date()): { years: number; months: number; days: number } | null {
+  if (typeof dob !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
+  const [by, bm, bd] = dob.split("-").map(Number);
+  let years = now.getFullYear() - by;
+  let months = now.getMonth() + 1 - bm;
+  let days = now.getDate() - bd;
+  if (days < 0) {
+    months--;
+    days += new Date(now.getFullYear(), now.getMonth(), 0).getDate(); // length of the previous month
+  }
+  if (months < 0) {
+    years--;
+    months += 12;
+  }
+  if (years < 0 || Number.isNaN(years)) return null;
+  return { years, months, days };
+}
+
+/** "28 years, 3 months, 12 days" (translated through `t`). */
+export function formatAge(a: { years: number; months: number; days: number }, t: (s: string, v?: Record<string, string | number>) => string): string {
+  return [
+    t(a.years === 1 ? "{n} year" : "{n} years", { n: a.years }),
+    t(a.months === 1 ? "{n} month" : "{n} months", { n: a.months }),
+    t(a.days === 1 ? "{n} day" : "{n} days", { n: a.days }),
+  ].join(", ");
+}
+
+/** Answers with every calculated age field filled in from today's date (as a formatted text when `t` is given, else whole years). */
+export function withCalculated(
+  fields: { id: string; settings: FieldSettings }[],
+  data: CustomData,
+  t?: (s: string, v?: Record<string, string | number>) => string
+): CustomData {
+  let out = data;
+  for (const f of fields) {
+    if (!f.settings.ageFrom) continue;
+    const a = ageParts(data[f.settings.ageFrom]);
+    if (out === data) out = { ...data };
+    if (a) out[f.id] = t ? formatAge(a, t) : a.years;
+    else delete out[f.id];
+  }
+  return out;
+}
+
+/** What goes into the candidate's Location: the answer of the field marked "use as location". */
+export function locationFromAnswers(fields: { id: string; settings: FieldSettings }[], data: CustomData): string {
+  for (const f of fields) {
+    if (!f.settings.toLocation) continue;
+    const v = data[f.id];
+    if (typeof v === "string" && v.trim()) return v.trim().slice(0, 200);
+  }
+  return "";
+}
+
 /** Column kinds for table fields (each column has its own type). */
 export const COLUMN_TYPES = ["text", "number", "date", "email", "phone", "yesno", "select"] as const;
 export type ColumnType = (typeof COLUMN_TYPES)[number];
@@ -148,6 +227,7 @@ export type CandidateField = {
   showIf: ShowRule | null;
   /** tables: type / required per column (same order as `options`, which holds the column names) */
   columns: ColumnDef[];
+  settings: FieldSettings;
   sortOrder: number;
 };
 

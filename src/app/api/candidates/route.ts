@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
-import { parseCustomData } from "@/lib/candidate-fields";
+import { locationFromAnswers, parseCustomData, withCalculated } from "@/lib/candidate-fields";
 import { CandidateFilters, CustomFilter, isCustomFilterActive, isStdField, matchesCustomFilter, matchesStdFilter } from "@/lib/candidate-filters";
 import { isValidStage } from "@/lib/constants";
 import { loadFields, validateCustomData } from "@/lib/candidate-custom";
@@ -154,7 +154,7 @@ export async function GET(req: Request) {
       for (const c of batch) {
         if (!std.every((flt) => matchesStdFilter(c as unknown as Record<string, unknown>, flt))) continue;
         if (usable.length) {
-          const data = parseCustomData(c.customData);
+          const data = withCalculated([...byId.values()], parseCustomData(c.customData)); // ages as of today
           if (!usable.every((flt) => matchesCustomFilter(data, byId.get(flt.fieldId)!, flt))) continue;
         }
         if (total >= from && items.length < pageSize) {
@@ -212,7 +212,7 @@ export async function POST(req: Request) {
         skills: str(body.skills),
         experience: str(body.experience),
         education: str(body.education),
-        location: str(body.location),
+        location: locationFromAnswers(fields, customData) || str(body.location),
         salary: str(body.salary),
         noticePeriod: str(body.noticePeriod),
         notes: str(body.notes),

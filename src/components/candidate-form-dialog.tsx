@@ -253,6 +253,7 @@ export function CandidateFormDialog({
                 <div key={f.id} className={f.type === "file" || f.type === "table" || f.type === "longtext" ? "sm:col-span-2" : ""}>
                   <CustomFieldInput
                     field={f}
+                    answers={custom}
                     showRequired={false}
                     value={custom[f.id]}
                     onChange={(v) =>
@@ -286,10 +287,12 @@ export function CandidateFormDialog({
                       <Label htmlFor="cand-phone">{t("Phone")}</Label>
                       <Input id="cand-phone" value={form.phone} onChange={(e) => set("phone")(e.target.value)} />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cand-location">{t("Location")}</Label>
-                      <Input id="cand-location" value={form.location} onChange={(e) => set("location")(e.target.value)} />
-                    </div>
+                    {!(fields ?? []).some((f) => f.settings.toLocation) && (
+                      <div className="space-y-2">
+                        <Label htmlFor="cand-location">{t("Location")}</Label>
+                        <Input id="cand-location" value={form.location} onChange={(e) => set("location")(e.target.value)} />
+                      </div>
+                    )}
                     {personal && renderCustom(personal.fields)}
                     <div className="space-y-2 sm:col-span-2">
                       <Label htmlFor="cand-tags">{t("Tags (comma-separated)")}</Label>

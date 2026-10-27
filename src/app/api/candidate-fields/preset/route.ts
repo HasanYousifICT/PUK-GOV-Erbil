@@ -48,6 +48,19 @@ export async function POST(req: Request) {
       });
     }
 
+    // Automatic behaviour: the age is calculated from the date of birth, and the city of birth fills Location.
+    const all = await db.candidateField.findMany({ select: { id: true, label: true, settings: true } });
+    const byLabel = new Map(all.map((x) => [x.label.toLowerCase(), x]));
+    const dob = byLabel.get("date of birth");
+    const age = byLabel.get("age (years)");
+    const city = byLabel.get("place of birth (city)");
+    if (dob && age && !age.settings.replace(/[{}\s]/g, "")) {
+      await db.candidateField.update({ where: { id: age.id }, data: { settings: JSON.stringify({ ageFrom: dob.id }), required: false } });
+    }
+    if (city && !city.settings.replace(/[{}\s]/g, "")) {
+      await db.candidateField.update({ where: { id: city.id }, data: { settings: JSON.stringify({ toLocation: true }) } });
+    }
+
     // The built-in starter sections ("Summary of information", "Experience", …) are not needed once the
     // form sections exist: remove them when they hold no fields (sections that are in use are kept).
     const starter = new Set(DEFAULT_SECTIONS.map(([name]) => name.toLowerCase()));

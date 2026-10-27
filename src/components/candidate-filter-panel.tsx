@@ -91,6 +91,7 @@ export function CandidateFilterPanel({
     sectionId: "",
     showIf: null,
     columns: [],
+    settings: {},
     sortOrder: i,
   }));
   const allFields: CandidateField[] = [...stdFields, ...(fields ?? [])];

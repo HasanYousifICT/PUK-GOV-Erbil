@@ -20,6 +20,9 @@ import {
   parseOptions,
   parseShowIf,
   parseColumnDefs,
+  parseFieldSettings,
+  FieldSettings,
+  withCalculated,
   tableProblem,
   COLUMN_TYPES,
   ColumnDef,
@@ -43,6 +46,7 @@ type FieldRow = {
   sectionId: string;
   showIf: string;
   columnDefs?: string;
+  settings?: string;
   sortOrder: number;
 };
 
@@ -54,6 +58,7 @@ export function serializeField(row: FieldRow): CandidateField {
     type: (FIELD_TYPES as readonly string[]).includes(row.type) ? (row.type as FieldType) : "text",
     options: parseOptions(row.options),
     columns: parseColumnDefs(row.columnDefs, row.type === "table" ? parseOptions(row.options).length : 0),
+    settings: parseFieldSettings(row.settings),
     required: row.required,
     publicForm: row.publicForm,
     sectionId: row.sectionId,
@@ -125,6 +130,7 @@ export function validateCustomData(
   const tableErrors = new Map<string, string>();
 
   for (const f of fields) {
+    if (f.settings.ageFrom) continue; // calculated from the date of birth below — never typed or required
     const raw = src[f.id];
     let value: CustomValue | undefined;
 
@@ -205,6 +211,7 @@ export function validateCustomData(
               return Array.from({ length: cols }, (_, i) => (typeof r[i] === "string" ? r[i].trim().slice(0, 300) : ""));
             })
             .filter((r) => r.some(Boolean));
+          if (f.settings.singleRow && rows.length > 1) throw new ApiError(400, "Only one row is allowed in this table");
           const problem = tableProblem(f, rows);
           if (problem?.kind === "invalid") throw new ApiError(400, `Invalid value in the “${problem.column}” column`);
           if (problem?.kind === "required" && enforceRequired) tableErrors.set(f.id, `The “${problem.column}” column is required`);
@@ -227,6 +234,10 @@ export function validateCustomData(
       data[f.id] = value;
     }
   }
+
+  // Calculated fields (age): stored as whole years so lists, filters and exports can use them.
+  const calc = withCalculated(fields, data);
+  for (const f of fields) if (f.settings.ageFrom) { if (calc[f.id] !== undefined) data[f.id] = calc[f.id]; else delete data[f.id]; }
 
   // Answers to fields that are hidden by a condition are dropped and never required.
   const hidden = fields.filter((f) => !isFieldVisible(f, data, fields));
@@ -347,4 +358,18 @@ export function normalizeShowIf(input: unknown, selfId: string | null, fields: C
   if (conds.length === 0) return "";
   const rule: ShowRule = { match: src.match === "any" ? "any" : "all", conds };
   return JSON.stringify(rule);
+}
+
+/** Validate the per-field settings sent by the client for a field of the given type. */
+export function normalizeSettings(input: unknown, type: FieldType, selfId: string | null, fields: CandidateField[]): FieldSettings {
+  const src = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const out: FieldSettings = {};
+  if (type === "number" && typeof src.ageFrom === "string" && src.ageFrom) {
+    const dob = fields.find((f) => f.id === src.ageFrom);
+    if (!dob || dob.type !== "date" || dob.id === selfId) throw new ApiError(400, "Choose a date field to calculate the age from");
+    out.ageFrom = dob.id;
+  }
+  if ((type === "text" || type === "select") && src.toLocation === true) out.toLocation = true;
+  if (type === "table" && src.singleRow === true) out.singleRow = true;
+  return out;
 }

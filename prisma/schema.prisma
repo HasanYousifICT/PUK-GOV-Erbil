@@ -164,6 +164,7 @@ model CandidateField {
   publicForm Boolean @default(true) // shown on the public application form
   sectionId String   @default("") // CandidateSection.id ("" = first section)
   showIf    String   @default("") // JSON {match:"all"|"any", conds:[{fieldId, op, value}]} (older: one {fieldId, op, value}) — empty = always shown
+  settings  String   @default("{}") // JSON {ageFrom?: date field id, toLocation?: boolean, singleRow?: boolean}
   columnDefs String  @default("[]") // tables: JSON [{type, required, options}] — one per column (the names are in `options`)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())

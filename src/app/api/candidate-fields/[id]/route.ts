@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAdmin, str } from "@/lib/api";
 import { FieldType, hasOptions, isFileValue, parseCustomData, parseShowIf } from "@/lib/candidate-fields";
-import { deleteFiles, loadFields, loadSections, normalizeColumnDefs, normalizeOptions, normalizeShowIf, serializeField } from "@/lib/candidate-custom";
+import { deleteFiles, loadFields, loadSections, normalizeColumnDefs, normalizeOptions, normalizeSettings, normalizeShowIf, serializeField } from "@/lib/candidate-custom";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,7 +14,7 @@ export async function PUT(req: Request, { params }: Params) {
     const existing = await db.candidateField.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Field not found");
 
-    const data: { label?: string; labelCkb?: string; options?: string; columnDefs?: string; required?: boolean; publicForm?: boolean; sectionId?: string; showIf?: string } = {};
+    const data: { label?: string; labelCkb?: string; options?: string; columnDefs?: string; settings?: string; required?: boolean; publicForm?: boolean; sectionId?: string; showIf?: string } = {};
     if ("label" in body) {
       const label = str(body.label).trim();
       if (!label) throw new ApiError(400, "Field name is required");
@@ -32,6 +32,11 @@ export async function PUT(req: Request, { params }: Params) {
       const sid = str(body.sectionId);
       if (!(await loadSections()).some((s) => s.id === sid)) throw new ApiError(400, "Section not found");
       data.sectionId = sid;
+    }
+    if ("settings" in body) {
+      const settings = normalizeSettings(body.settings, existing.type as FieldType, id, await loadFields());
+      data.settings = JSON.stringify(settings);
+      if (settings.ageFrom) data.required = false;
     }
     if ("showIf" in body) data.showIf = normalizeShowIf(body.showIf, id, await loadFields());
     if (("columns" in body || "options" in body) && existing.type === "table") {

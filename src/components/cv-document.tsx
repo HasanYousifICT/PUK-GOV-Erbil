@@ -15,6 +15,7 @@ import {
   isFileValue,
   parseCustomData,
   sectionLabel,
+  withCalculated,
 } from "@/lib/candidate-fields";
 import { Locale } from "@/lib/i18n-core";
 import { useI18n } from "@/lib/i18n";
@@ -60,7 +61,7 @@ function buildBlocks(
 
   if (c.notes.trim()) std("std:summary", { title: t("Summary"), text: c.notes });
 
-  const data = parseCustomData(c.customData);
+  const data = withCalculated(fields, parseCustomData(c.customData), t);
   for (const { section, fields: group } of groupFields(fields, sections)) {
     if (hidden.has(section.id)) continue;
     const items = group

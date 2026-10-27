@@ -54,6 +54,7 @@ import { CandidateFormDialog } from "@/components/candidate-form-dialog";
 import { CandidateFilterPanel } from "@/components/candidate-filter-panel";
 import { Pager } from "@/components/pager";
 import { BulkAddToJobDialog } from "@/components/bulk-add-dialog";
+import { withCalculated } from "@/lib/candidate-fields";
 import { CustomFieldValue, useCandidateFields, useCandidateSections } from "@/components/candidate-fields";
 import { activeFilterCount, CandidateFilters } from "@/lib/candidate-filters";
 import { fieldLabel, groupFields, parseCustomData, sectionLabel } from "@/lib/candidate-fields";
@@ -796,7 +797,7 @@ function CustomFieldsCard({ customData }: { customData: string }) {
   const { t, locale } = useI18n();
   const { fields } = useCandidateFields();
   const { sections } = useCandidateSections();
-  const data = useMemo(() => parseCustomData(customData), [customData]);
+  const data = useMemo(() => (fields ? withCalculated(fields, parseCustomData(customData), t) : parseCustomData(customData)), [customData, fields, t]);
   if (!fields || !sections || fields.length === 0) return null;
   return (
     <>

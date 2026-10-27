@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAdmin, requireAuth, str } from "@/lib/api";
 import { FIELD_TYPES, hasOptions, MAX_FIELDS, FieldType } from "@/lib/candidate-fields";
-import { loadFields, loadSections, normalizeColumnDefs, normalizeOptions, normalizeShowIf, serializeField } from "@/lib/candidate-custom";
+import { loadFields, loadSections, normalizeColumnDefs, normalizeOptions, normalizeSettings, normalizeShowIf, serializeField } from "@/lib/candidate-custom";
 
 /** GET /api/candidate-fields — all custom field definitions in display order. */
 export async function GET(req: Request) {
@@ -36,7 +36,9 @@ export async function POST(req: Request) {
     if (existing.some((f) => f.label.toLowerCase() === label.toLowerCase())) {
       throw new ApiError(409, "A field with this name already exists");
     }
-    const showIf = normalizeShowIf(body.showIf, null, await loadFields());
+    const allFields = await loadFields();
+    const showIf = normalizeShowIf(body.showIf, null, allFields);
+    const settings = normalizeSettings(body.settings, type as FieldType, null, allFields);
     const sortOrder = existing.reduce((m, f) => Math.max(m, f.sortOrder), -1) + 1;
 
     const row = await db.candidateField.create({
@@ -46,7 +48,8 @@ export async function POST(req: Request) {
         type,
         options: JSON.stringify(options),
         columnDefs: JSON.stringify(cols?.defs ?? []),
-        required: body.required === true,
+        required: body.required === true && !settings.ageFrom,
+        settings: JSON.stringify(settings),
         publicForm: body.publicForm !== false,
         sectionId,
         showIf,

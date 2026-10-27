@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
-import { parseCustomData } from "@/lib/candidate-fields";
+import { locationFromAnswers, parseCustomData } from "@/lib/candidate-fields";
 import { deleteFiles, fileKeysOf, loadFields, validateCustomData } from "@/lib/candidate-custom";
 
 type Params = { params: Promise<{ id: string }> };
@@ -74,6 +74,8 @@ export async function PUT(req: Request, { params }: Params) {
       const fields = await loadFields();
       const result = validateCustomData(body.customData, fields, parseCustomData(existing.customData), { enforceRequired: false });
       customData = JSON.stringify(result.data);
+      const fromAnswers = locationFromAnswers(fields, result.data);
+      if (fromAnswers) data.location = fromAnswers;
       removedFiles = result.removedFiles;
     }
 

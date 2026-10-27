@@ -1,7 +1,7 @@
 // OpenRecruitOS — shared client-side types & typed API client
 
 import type { JobCategory } from "@/lib/categories";
-import type { CandidateField, CandidateSection, ColumnType, CustomData, FieldType, FileValue, ShowRule } from "@/lib/candidate-fields";
+import type { CandidateField, CandidateSection, ColumnType, CustomData, FieldSettings, FieldType, FileValue, ShowRule } from "@/lib/candidate-fields";
 import type { CandidateFilters } from "@/lib/candidate-filters";
 
 import type { Permissions } from "@/lib/permissions";
@@ -380,6 +380,7 @@ export const apiClient = {
     type: FieldType;
     options?: string[];
     columns?: ColumnInput[];
+    settings?: FieldSettings;
     required?: boolean;
     publicForm?: boolean;
     sectionId?: string;
@@ -387,7 +388,7 @@ export const apiClient = {
   }) => api<CandidateField>("/api/candidate-fields", { method: "POST", body: JSON.stringify(data) }),
   updateCandidateField: (
     id: string,
-    data: { label?: string; labelCkb?: string; options?: string[]; columns?: ColumnInput[]; required?: boolean; publicForm?: boolean; sectionId?: string; showIf?: ShowRule | null }
+    data: { label?: string; labelCkb?: string; options?: string[]; columns?: ColumnInput[]; settings?: FieldSettings; required?: boolean; publicForm?: boolean; sectionId?: string; showIf?: ShowRule | null }
   ) => api<CandidateField>(`/api/candidate-fields/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteCandidateField: (id: string) =>
     api<{ ok: boolean }>(`/api/candidate-fields/${id}`, { method: "DELETE" }),
