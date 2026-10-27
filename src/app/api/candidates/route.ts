@@ -194,12 +194,15 @@ export async function POST(req: Request) {
     const name = str(body.name).trim();
     if (!name) throw new ApiError(400, "Candidate name is required");
     const email = str(body.email).trim();
+    // the same "required" rules as the candidate profile: name, a valid e-mail and a phone number, plus every required field
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ApiError(400, "Please enter a valid email address");
+    if (!str(body.phone).trim()) throw new ApiError(400, "Phone number is required");
     if (email) {
       const dup = await db.candidate.findFirst({ where: { email } });
       if (dup) throw new ApiError(409, "A candidate with this email already exists");
     }
     const fields = await loadFields();
-    const { data: customData } = validateCustomData(body.customData ?? {}, fields, {}, { enforceRequired: false });
+    const { data: customData } = validateCustomData(body.customData ?? {}, fields, {}, { enforceRequired: true });
 
     const candidate = await db.candidate.create({
       data: {

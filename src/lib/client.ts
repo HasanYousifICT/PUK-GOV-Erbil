@@ -2,6 +2,7 @@
 
 import type { JobCategory } from "@/lib/categories";
 import type { CandidateField, CandidateSection, ColumnType, CustomData, FieldSettings, FieldType, FileValue, ShowRule } from "@/lib/candidate-fields";
+import type { DraftData } from "@/lib/candidate-drafts";
 import type { CandidateFilters } from "@/lib/candidate-filters";
 
 import type { Permissions } from "@/lib/permissions";
@@ -95,6 +96,9 @@ export type JobTitle = {
   titleCkb: string;
   jobCount?: number;
 };
+
+/** A saved (unfinished) Add-candidate form. */
+export type DraftRow = { id: string; label: string; updatedAt: string; createdAt: string };
 
 /** A table column as sent when saving a field. */
 export type ColumnInput = { name: string; type: ColumnType; required: boolean; options: string[] };
@@ -351,6 +355,12 @@ export const apiClient = {
     api<Paged<Candidate>>(
       `/api/candidates${qs({ q, page, pageSize, filters: filters && Object.keys(filters).length ? JSON.stringify(filters) : undefined })}`
     ),
+  /* staff drafts of the Add candidate form */
+  listCandidateDrafts: () => api<DraftRow[]>("/api/candidate-drafts"),
+  getCandidateDraft: (id: string) => api<DraftRow & { data: DraftData }>(`/api/candidate-drafts/${id}`),
+  saveCandidateDraft: (data: DraftData, id?: string) =>
+    api<DraftRow>(id ? `/api/candidate-drafts/${id}` : "/api/candidate-drafts", { method: id ? "PUT" : "POST", body: JSON.stringify({ data }) }),
+  deleteCandidateDraft: (id: string) => api<{ ok: boolean }>(`/api/candidate-drafts/${id}`, { method: "DELETE" }),
   getCandidate: (id: string) => api<CandidateDetail>(`/api/candidates/${id}`),
   createCandidate: (data: CandidatePayload) =>
     api<Candidate>("/api/candidates", { method: "POST", body: JSON.stringify(data) }),

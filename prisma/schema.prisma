@@ -227,3 +227,15 @@ model CvDesign {
   footerNote  String   @default("")
   updatedAt   DateTime @updatedAt
 }
+
+/// A half-filled "Add candidate" form saved by a staff user, to be finished later.
+model CandidateDraft {
+  id        String   @id @default(cuid())
+  userId    String
+  label     String   @default("")
+  data      String   @default("{}") // JSON {form, custom}
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+}

@@ -116,11 +116,15 @@ export function ageParts(dob: unknown, now: Date = new Date()): { years: number;
 
 /** "28 years, 3 months, 12 days" (translated through `t`). */
 export function formatAge(a: { years: number; months: number; days: number }, t: (s: string, v?: Record<string, string | number>) => string): string {
-  return [
+  const parts = [
     t(a.years === 1 ? "{n} year" : "{n} years", { n: a.years }),
     t(a.months === 1 ? "{n} month" : "{n} months", { n: a.months }),
     t(a.days === 1 ? "{n} day" : "{n} days", { n: a.days }),
-  ].join(", ");
+  ];
+  // Arabic-script text (Kurdish): isolate the whole phrase as right-to-left so each number stays
+  // in front of its unit and the three parts read in order, whatever the surrounding direction.
+  if (parts.some((p) => /[\u0600-\u06FF]/.test(p))) return `\u2067${parts.join("\u060C ")}\u2069`;
+  return parts.join(", ");
 }
 
 /** Answers with every calculated age field filled in from today's date (as a formatted text when `t` is given, else whole years). */

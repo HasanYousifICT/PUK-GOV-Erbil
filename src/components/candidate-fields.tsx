@@ -555,17 +555,18 @@ function TableInput({
 }
 
 /** Read-only rendering for the candidate profile. */
-export function CustomFieldValue({ field, value }: { field: CandidateField; value: CustomValue | undefined }) {
+export function CustomFieldValue({ field, value, fit = false }: { field: CandidateField; value: CustomValue | undefined; fit?: boolean }) {
   const { t } = useI18n();
   if (isEmptyValue(value)) return <span className="text-muted-foreground">—</span>;
   if (isTableValue(value)) {
+    // `fit` (the CV / PDF): every column and row is shown in full, wrapped inside the page width — no scrolling.
     return (
-      <div className="max-w-full overflow-x-auto rounded-md border">
-        <table className="w-full text-start text-xs">
+      <div className={fit ? "w-full rounded-md border" : "max-w-full overflow-x-auto rounded-md border"}>
+        <table className={`w-full border-collapse text-center text-xs ${fit ? "table-fixed" : ""}`}>
           <thead className="bg-muted/50">
             <tr>
               {field.options.map((c) => (
-                <th key={c} className="px-2 py-1.5 text-start font-medium">
+                <th key={c} className="break-words border-b border-s px-2 py-1.5 text-center align-middle font-medium first:border-s-0" dir="auto">
                   {c}
                 </th>
               ))}
@@ -575,7 +576,7 @@ export function CustomFieldValue({ field, value }: { field: CandidateField; valu
             {value.rows.map((r, i) => (
               <tr key={i} className="border-t">
                 {field.options.map((c, j) => (
-                  <td key={c} className="px-2 py-1.5 align-top" dir="auto">
+                  <td key={c} className="break-words border-s px-2 py-1.5 text-center align-middle first:border-s-0" dir="auto">
                     {r[j] === "yes" ? t("Yes") : r[j] === "no" ? t("No") : r[j] || "—"}
                   </td>
                 ))}

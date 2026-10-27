@@ -22,6 +22,7 @@ import {
   Search,
   Trash2,
   Users,
+  FileClock,
 } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { format } from "date-fns";
@@ -52,6 +53,8 @@ import {
 import { NavState } from "@/components/app-shell";
 import { CandidateFormDialog } from "@/components/candidate-form-dialog";
 import { CandidateFilterPanel } from "@/components/candidate-filter-panel";
+import { CandidateDraftsDialog } from "@/components/candidate-drafts-dialog";
+import type { DraftData } from "@/lib/candidate-drafts";
 import { Pager } from "@/components/pager";
 import { BulkAddToJobDialog } from "@/components/bulk-add-dialog";
 import { withCalculated } from "@/lib/candidate-fields";
@@ -134,6 +137,16 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
   const [query, setQuery] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Candidate | null>(null);
+  const [draftToResume, setDraftToResume] = useState<{ id: string; data: DraftData } | null>(null);
+  const [draftsOpen, setDraftsOpen] = useState(false);
+  const [draftCount, setDraftCount] = useState(0);
+  const refreshDrafts = useCallback(() => {
+    if (!canEdit) return;
+    apiClient.listCandidateDrafts().then((r) => setDraftCount(r.length)).catch(() => undefined);
+  }, [canEdit]);
+  useEffect(() => {
+    refreshDrafts();
+  }, [refreshDrafts]);
   const [deleting, setDeleting] = useState<Candidate | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [filters, setFilters] = useState<CandidateFilters>({});
@@ -209,15 +222,26 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
         title={t("Candidates")}
         description={t("Your talent database — add candidates manually or by uploading resumes.")}
         action={
-          !canEdit ? undefined : <Button
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-          >
-            <Plus className="me-2 h-4 w-4" />
-            {t("Add Candidate")}
-          </Button>
+          !canEdit ? undefined : (
+            <div className="flex flex-wrap gap-2">
+              {draftCount > 0 && (
+                <Button variant="outline" onClick={() => setDraftsOpen(true)}>
+                  <FileClock className="me-2 h-4 w-4" />
+                  {t("Drafts")} ({draftCount})
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  setEditing(null);
+                  setDraftToResume(null);
+                  setFormOpen(true);
+                }}
+              >
+                <Plus className="me-2 h-4 w-4" />
+                {t("Add Candidate")}
+              </Button>
+            </div>
+          )
         }
       />
 
@@ -289,6 +313,7 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
               <Button
                 onClick={() => {
                   setEditing(null);
+                  setDraftToResume(null);
                   setFormOpen(true);
                 }}
               >
@@ -445,7 +470,24 @@ export function CandidatesView({ onNavigate }: { onNavigate: (state: NavState) =
         </>
       )}
 
-      <CandidateFormDialog open={formOpen} onOpenChange={setFormOpen} candidate={editing} onSaved={load} />
+      <CandidateFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        candidate={editing}
+        draft={draftToResume}
+        onDraftsChanged={refreshDrafts}
+        onSaved={load}
+      />
+      <CandidateDraftsDialog
+        open={draftsOpen}
+        onOpenChange={setDraftsOpen}
+        onChanged={refreshDrafts}
+        onResume={(d) => {
+          setEditing(null);
+          setDraftToResume(d);
+          setFormOpen(true);
+        }}
+      />
       <AccountDialog
         open={!!accessFor}
         candidate={accessFor}

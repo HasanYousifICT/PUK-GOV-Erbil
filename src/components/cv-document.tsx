@@ -68,7 +68,7 @@ function buildBlocks(
       .filter((f) => !isEmptyValue(data[f.id]))
       .map((f) => ({
         label: fieldLabel(f, locale),
-        node: <CustomFieldValue field={f} value={data[f.id]} />,
+        node: <CustomFieldValue field={f} value={data[f.id]} fit />,
         wide: f.type === "table" || f.type === "longtext",
       }));
     if (items.length) out.push({ id: section.id, title: sectionLabel(section, locale), items });

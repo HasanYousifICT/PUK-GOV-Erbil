@@ -15,12 +15,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Candidate, ParseResumeResult, apiClient } from "@/lib/client";
+import { Candidate, ParseResumeResult, apiClient, DraftRow } from "@/lib/client";
 import { CustomFieldInput, useCandidateFields, useCandidateSections } from "@/components/candidate-fields";
 import { PhotoPicker } from "@/components/photo-picker";
-import { CustomData, fieldLabel, groupFields, isFieldVisible, isEmptyValue, isPersonalSection, parseCustomData, sectionLabel } from "@/lib/candidate-fields";
+import { CustomData, fieldLabel, groupFields, isFieldVisible, isEmptyValue, isPersonalSection, isTableValue, parseCustomData, sectionLabel, tableProblem } from "@/lib/candidate-fields";
 
 import { useI18n } from "@/lib/i18n";
+import type { DraftData } from "@/lib/candidate-drafts";
 const BLANK = {
   name: "",
   email: "",
@@ -42,11 +43,16 @@ export function CandidateFormDialog({
   onOpenChange,
   candidate,
   onSaved,
+  draft,
+  onDraftsChanged,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   candidate?: Candidate | null;
   onSaved: () => void;
+  /** a saved draft to continue (new candidates only) */
+  draft?: { id: string; data: DraftData } | null;
+  onDraftsChanged?: () => void;
 }) {
   const { t, locale } = useI18n();
   const { fields } = useCandidateFields();
@@ -59,12 +65,17 @@ export function CandidateFormDialog({
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     if (open) {
       setError(null);
       setParseNote(null);
-      setCustom(parseCustomData(candidate?.customData));
+      setDraftId(!candidate && draft ? draft.id : null);
+      setDraftSavedAt(null);
+      setCustom(!candidate && draft ? (draft.data.custom as CustomData) : parseCustomData(candidate?.customData));
       setForm({
         ...BLANK,
         name: candidate?.name ?? "",
@@ -81,9 +92,10 @@ export function CandidateFormDialog({
         resume: candidate?.resume ?? "",
         resumeName: candidate?.resumeName ?? "",
         photo: candidate?.photo ?? "",
+        ...(!candidate && draft ? draft.data.form : {}),
       });
     }
-  }, [open, candidate]);
+  }, [open, candidate, draft]);
 
   const set = (key: keyof CandidateFormValues) => (value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -129,6 +141,35 @@ export function CandidateFormDialog({
       setError("Candidate name is required");
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      setError("Please enter a valid email address");
+      return;
+    }
+    if (!form.phone.trim()) {
+      setError("Phone number is required");
+      return;
+    }
+    // every required field of the candidate profile must be filled before the candidate can be saved
+    for (const f of fields ?? []) {
+      if (f.settings.ageFrom || !isFieldVisible(f, custom, fields ?? [])) continue;
+      if (f.required && isEmptyValue(custom[f.id])) {
+        setError(t("“{name}” is required", { name: fieldLabel(f, locale) }));
+        return;
+      }
+      const tv = custom[f.id];
+      if (f.type === "table" && isTableValue(tv)) {
+        const problem = tableProblem(f, tv.rows);
+        if (problem) {
+          setError(
+            t(problem.kind === "required" ? "In “{name}”, the “{col}” column is required" : "In “{name}”, the “{col}” column has an invalid value", {
+              name: fieldLabel(f, locale),
+              col: problem.column,
+            })
+          );
+          return;
+        }
+      }
+    }
     setBusy(true);
     const payload = { ...form, customData: custom };
     try {
@@ -137,6 +178,10 @@ export function CandidateFormDialog({
         toast.success("Candidate updated");
       } else {
         await apiClient.createCandidate(payload);
+        if (draftId) {
+          await apiClient.deleteCandidateDraft(draftId).catch(() => undefined);
+          onDraftsChanged?.();
+        }
         toast.success("Candidate added");
       }
       onOpenChange(false);
@@ -145,6 +190,23 @@ export function CandidateFormDialog({
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Save what is filled so far (no required checks) so it can be finished later. */
+  async function saveDraft() {
+    setDraftBusy(true);
+    setError(null);
+    try {
+      const row = await apiClient.saveCandidateDraft({ form, custom }, draftId ?? undefined);
+      setDraftId(row.id);
+      setDraftSavedAt(new Date());
+      onDraftsChanged?.();
+      toast.success("Draft saved. You can finish it later from “Drafts”.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the draft");
+    } finally {
+      setDraftBusy(false);
     }
   }
 
@@ -254,7 +316,6 @@ export function CandidateFormDialog({
                   <CustomFieldInput
                     field={f}
                     answers={custom}
-                    showRequired={false}
                     value={custom[f.id]}
                     onChange={(v) =>
                       setCustom((c) => {
@@ -280,11 +341,11 @@ export function CandidateFormDialog({
                       <Input id="cand-name" value={form.name} onChange={(e) => set("name")(e.target.value)} required />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="cand-email">{t("Email")}</Label>
+                      <Label htmlFor="cand-email">{t("Email *")}</Label>
                       <Input id="cand-email" type="email" value={form.email} onChange={(e) => set("email")(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="cand-phone">{t("Phone")}</Label>
+                      <Label htmlFor="cand-phone">{t("Phone *")}</Label>
                       <Input id="cand-phone" value={form.phone} onChange={(e) => set("phone")(e.target.value)} />
                     </div>
                     {!(fields ?? []).some((f) => f.settings.toLocation) && (
@@ -320,10 +381,19 @@ export function CandidateFormDialog({
             </div>
           )}
 
+          {!candidate && draftSavedAt && (
+            <p className="text-xs text-muted-foreground">{t("Draft saved at {time}", { time: draftSavedAt.toLocaleTimeString() })}</p>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
               {t("Cancel")}
             </Button>
+            {!candidate && (
+              <Button type="button" variant="secondary" onClick={saveDraft} disabled={busy || draftBusy || uploading}>
+                {draftBusy && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+                {t("Save draft")}
+              </Button>
+            )}
             <Button type="submit" disabled={busy || uploading}>
               {busy && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               {candidate ? t("Save changes") : t("Add candidate")}

@@ -72,7 +72,7 @@ export async function PUT(req: Request, { params }: Params) {
     let customData: string | undefined;
     if ("customData" in body) {
       const fields = await loadFields();
-      const result = validateCustomData(body.customData, fields, parseCustomData(existing.customData), { enforceRequired: false });
+      const result = validateCustomData(body.customData, fields, parseCustomData(existing.customData), { enforceRequired: true });
       customData = JSON.stringify(result.data);
       const fromAnswers = locationFromAnswers(fields, result.data);
       if (fromAnswers) data.location = fromAnswers;
