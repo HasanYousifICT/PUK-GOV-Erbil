@@ -461,6 +461,18 @@ function CellInput({ def, value, onChange, label }: { def: ColumnDef; value: str
   const { t } = useI18n();
   if (def.type === "yesno" || def.type === "select") {
     const choices = def.type === "yesno" ? ["yes", "no"] : def.options;
+    if (choices.length > 7) {
+      return (
+        <SearchableSelect
+          ariaLabel={label}
+          value={value || undefined}
+          noneLabel={t("— (none)")}
+          placeholder={t("Select an option")}
+          onChange={(v) => onChange(v ?? "")}
+          options={choices.map((o) => ({ value: o, label: o }))}
+        />
+      );
+    }
     return (
       <Select value={value || NONE} onValueChange={(v) => onChange(v === NONE ? "" : v)}>
         <SelectTrigger aria-label={label}>

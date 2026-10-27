@@ -36,7 +36,7 @@ export function isTextType(type: FieldType): boolean {
 export const MAX_FIELDS = 150;
 export const MAX_TABLE_COLUMNS = 8;
 export const MAX_TABLE_ROWS = 30;
-export const MAX_OPTIONS = 100;
+export const MAX_OPTIONS = 1000;
 
 /** Show a field only when other fields match. */
 export const SHOW_OPS = ["equals", "notEquals", "filled"] as const;
@@ -158,7 +158,7 @@ export function locationFromAnswers(fields: { id: string; settings: FieldSetting
 export const COLUMN_TYPES = ["text", "number", "date", "email", "phone", "yesno", "select"] as const;
 export type ColumnType = (typeof COLUMN_TYPES)[number];
 export type ColumnDef = { type: ColumnType; required: boolean; options: string[] };
-export const MAX_COLUMN_OPTIONS = 50;
+export const MAX_COLUMN_OPTIONS = 1000;
 
 export function parseColumnDefs(raw: string | null | undefined, count: number): ColumnDef[] {
   let list: unknown[] = [];

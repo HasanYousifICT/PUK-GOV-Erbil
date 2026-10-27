@@ -507,7 +507,7 @@ export const ckb: Record<string, string> = {
   "Select all": "هەڵبژاردنی هەموو",
   "Select {name}": "هەڵبژاردنی {name}",
   "Option is too long (max 100 characters)": "بژاردەکە زۆر درێژە (زۆرترین ١٠٠ پیت)",
-  "Too many options (max 100)": "بژاردەی زۆرە (زۆرترین ١٠٠)",
+  "Too many options (max 1000)": "بژاردەی زۆرە (زۆرترین ١٠٠٠)",
   "Invalid custom field data": "داتای خانەی تایبەت نادروستە",
   "Invalid text value": "بەهای دەق نادروستە",
   "Invalid number value": "بەهای ژمارە نادروستە",

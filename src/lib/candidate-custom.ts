@@ -121,7 +121,7 @@ export function normalizeOptions(input: unknown): string[] {
     seen.add(v.toLowerCase());
     out.push(v);
   }
-  if (out.length > MAX_OPTIONS) throw new ApiError(400, "Too many options (max 100)");
+  if (out.length > MAX_OPTIONS) throw new ApiError(400, "Too many options (max 1000)");
   return out;
 }
 
@@ -310,7 +310,7 @@ export function normalizeColumnDefs(input: unknown): { names: string[]; defs: Co
     if (type === "select") {
       options = normalizeOptions(o?.options);
       if (options.length === 0) throw new ApiError(400, `Add the choices for the “${name}” column`);
-      if (options.length > MAX_COLUMN_OPTIONS) throw new ApiError(400, "Too many options (max 100)");
+      if (options.length > MAX_COLUMN_OPTIONS) throw new ApiError(400, "Too many options (max 1000)");
     }
     names.push(name);
     defs.push({ type, required: o?.required === true, options });
