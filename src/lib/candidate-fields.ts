@@ -38,20 +38,100 @@ export const MAX_TABLE_COLUMNS = 8;
 export const MAX_TABLE_ROWS = 30;
 export const MAX_OPTIONS = 100;
 
-/** Show a field only when another field matches. */
+/** Show a field only when other fields match. */
 export const SHOW_OPS = ["equals", "notEquals", "filled"] as const;
 export type ShowOp = (typeof SHOW_OPS)[number];
 export type ShowIf = { fieldId: string; op: ShowOp; value: string };
+/** One or more conditions: all of them (AND) or any of them (OR). */
+export type ShowRule = { match: "all" | "any"; conds: ShowIf[] };
+export const MAX_CONDITIONS = 10;
 
-export function parseShowIf(raw: string | null | undefined): ShowIf | null {
+function cleanCond(v: unknown): ShowIf | null {
+  const o = v as Record<string, unknown> | null;
+  if (o && typeof o.fieldId === "string" && (SHOW_OPS as readonly string[]).includes(o.op as string)) {
+    return { fieldId: o.fieldId, op: o.op as ShowOp, value: typeof o.value === "string" ? o.value : "" };
+  }
+  return null;
+}
+
+/** Reads the stored condition(s); an older single `{fieldId, op, value}` becomes a rule with one condition. */
+export function parseShowIf(raw: string | null | undefined): ShowRule | null {
   if (!raw) return null;
   try {
     const v = JSON.parse(raw);
-    if (v && typeof v.fieldId === "string" && (SHOW_OPS as readonly string[]).includes(v.op)) {
-      return { fieldId: v.fieldId, op: v.op, value: typeof v.value === "string" ? v.value : "" };
+    if (v && Array.isArray(v.conds)) {
+      const conds = (v.conds as unknown[]).map(cleanCond).filter((c): c is ShowIf => !!c).slice(0, MAX_CONDITIONS);
+      return conds.length ? { match: v.match === "any" ? "any" : "all", conds } : null;
     }
+    const one = cleanCond(v);
+    return one ? { match: "all", conds: [one] } : null;
   } catch {
     /* ignore */
+  }
+  return null;
+}
+
+/** Column kinds for table fields (each column has its own type). */
+export const COLUMN_TYPES = ["text", "number", "date", "email", "phone", "yesno", "select"] as const;
+export type ColumnType = (typeof COLUMN_TYPES)[number];
+export type ColumnDef = { type: ColumnType; required: boolean; options: string[] };
+export const MAX_COLUMN_OPTIONS = 50;
+
+export function parseColumnDefs(raw: string | null | undefined, count: number): ColumnDef[] {
+  let list: unknown[] = [];
+  try {
+    const v = JSON.parse(raw || "[]");
+    if (Array.isArray(v)) list = v;
+  } catch {
+    /* ignore */
+  }
+  return Array.from({ length: count }, (_, i) => {
+    const o = (list[i] ?? {}) as Record<string, unknown>;
+    const type = (COLUMN_TYPES as readonly string[]).includes(o.type as string) ? (o.type as ColumnType) : "text";
+    return {
+      type,
+      required: o.required === true,
+      options: type === "select" && Array.isArray(o.options) ? o.options.filter((x): x is string => typeof x === "string") : [],
+    };
+  });
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Is one table cell acceptable for its column type? (An empty cell is checked separately.) */
+export function cellProblem(def: ColumnDef, v: string): boolean {
+  if (!v) return false;
+  switch (def.type) {
+    case "number":
+      return !Number.isFinite(Number(v));
+    case "date":
+      return !/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(new Date(`${v}T00:00:00.000Z`).getTime());
+    case "email":
+      return !EMAIL_RE.test(v);
+    case "phone":
+      return !/^[+\d][\d\s()-]{4,29}$/.test(v);
+    case "yesno":
+      return v !== "yes" && v !== "no";
+    case "select":
+      return !def.options.includes(v);
+    default:
+      return false;
+  }
+}
+
+/**
+ * The first problem in a table answer (a required column left empty, a wrong value), or null.
+ * Rows that are completely empty are ignored. Shared by the forms and the server.
+ */
+export function tableProblem(field: { options: string[]; columns: ColumnDef[] }, rows: string[][]): { kind: "required" | "invalid"; column: string } | null {
+  for (const row of rows) {
+    if (!row.some((c) => (c ?? "").trim())) continue;
+    for (let i = 0; i < field.options.length; i++) {
+      const def = field.columns[i] ?? { type: "text", required: false, options: [] };
+      const v = (row[i] ?? "").trim();
+      if (!v && def.required) return { kind: "required", column: field.options[i] };
+      if (v && cellProblem(def, v)) return { kind: "invalid", column: field.options[i] };
+    }
   }
   return null;
 }
@@ -65,7 +145,9 @@ export type CandidateField = {
   required: boolean;
   publicForm: boolean;
   sectionId: string;
-  showIf: ShowIf | null;
+  showIf: ShowRule | null;
+  /** tables: type / required per column (same order as `options`, which holds the column names) */
+  columns: ColumnDef[];
   sortOrder: number;
 };
 
@@ -182,8 +264,9 @@ function matchesCondition(cond: ShowIf, v: CustomValue | undefined): boolean {
 }
 
 /**
- * Whether a field is shown for the given answers. A field whose controlling field
- * is itself hidden is hidden too (chains work; loops count as hidden).
+ * Whether a field is shown for the given answers. With several conditions, "all" needs every one
+ * to match and "any" needs one. A condition whose controlling field is itself hidden counts as not
+ * matched (chains work; loops count as hidden). Conditions on deleted fields are ignored.
  */
 export function isFieldVisible(
   field: CandidateField,
@@ -191,11 +274,15 @@ export function isFieldVisible(
   fields: CandidateField[],
   seen: string[] = []
 ): boolean {
-  const cond = field.showIf;
-  if (!cond) return true;
+  const rule = field.showIf;
+  if (!rule || rule.conds.length === 0) return true;
   if (seen.includes(field.id)) return false;
-  const parent = fields.find((f) => f.id === cond.fieldId);
-  if (!parent) return true; // controlling field was deleted — treat as always shown
-  if (!isFieldVisible(parent, data, fields, [...seen, field.id])) return false;
-  return matchesCondition(cond, data[parent.id]);
+  const results: boolean[] = [];
+  for (const cond of rule.conds) {
+    const parent = fields.find((f) => f.id === cond.fieldId);
+    if (!parent) continue; // controlling field was deleted
+    results.push(isFieldVisible(parent, data, fields, [...seen, field.id]) && matchesCondition(cond, data[parent.id]));
+  }
+  if (results.length === 0) return true;
+  return rule.match === "any" ? results.some(Boolean) : results.every(Boolean);
 }

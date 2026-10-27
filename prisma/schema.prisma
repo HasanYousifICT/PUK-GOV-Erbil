@@ -163,7 +163,8 @@ model CandidateField {
   required  Boolean  @default(false)
   publicForm Boolean @default(true) // shown on the public application form
   sectionId String   @default("") // CandidateSection.id ("" = first section)
-  showIf    String   @default("") // JSON {fieldId, op, value} — empty = always shown
+  showIf    String   @default("") // JSON {match:"all"|"any", conds:[{fieldId, op, value}]} (older: one {fieldId, op, value}) — empty = always shown
+  columnDefs String  @default("[]") // tables: JSON [{type, required, options}] — one per column (the names are in `options`)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

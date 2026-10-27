@@ -53,7 +53,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog, ErrorState, TableSkeleton } from "@/components/shared";
 import { SearchableSelect } from "@/components/searchable-select";
-import { apiClient } from "@/lib/client";
+import { apiClient, ColumnInput } from "@/lib/client";
 import {
   CandidateField,
   CandidateSection,
@@ -75,6 +75,12 @@ import {
   MAX_FIELDS,
   ShowIf,
   ShowOp,
+  ShowRule,
+  ColumnDef,
+  ColumnType,
+  COLUMN_TYPES,
+  MAX_CONDITIONS,
+  MAX_TABLE_COLUMNS,
 } from "@/lib/candidate-fields";
 import { useI18n } from "@/lib/i18n";
 
@@ -431,6 +437,41 @@ function MultiSelectInput({
   );
 }
 
+/** One table cell, shaped by its column's type. */
+function CellInput({ def, value, onChange, label }: { def: ColumnDef; value: string; onChange: (v: string) => void; label: string }) {
+  const { t } = useI18n();
+  if (def.type === "yesno" || def.type === "select") {
+    const choices = def.type === "yesno" ? ["yes", "no"] : def.options;
+    return (
+      <Select value={value || NONE} onValueChange={(v) => onChange(v === NONE ? "" : v)}>
+        <SelectTrigger aria-label={label}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="max-h-72">
+          <SelectItem value={NONE}>{t("— (none)")}</SelectItem>
+          {choices.map((o) => (
+            <SelectItem key={o} value={o}>
+              {o === "yes" ? t("Yes") : o === "no" ? t("No") : o}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+  const type = def.type === "number" ? "number" : def.type === "date" ? "date" : def.type === "email" ? "email" : def.type === "phone" ? "tel" : "text";
+  return (
+    <Input
+      type={type}
+      dir={type === "text" ? undefined : "ltr"}
+      inputMode={def.type === "number" ? "decimal" : undefined}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      maxLength={300}
+      aria-label={label}
+    />
+  );
+}
+
 /** Repeating rows: one small card per row, one input per column. */
 function TableInput({
   field,
@@ -443,6 +484,7 @@ function TableInput({
 }) {
   const { t } = useI18n();
   const cols = field.options.length;
+  const defOf = (j: number): ColumnDef => field.columns[j] ?? { type: "text", required: false, options: [] };
   const blank = () => Array.from({ length: cols }, () => "");
   const setCell = (r: number, c: number, v: string) =>
     onChange(rows.map((row, i) => (i === r ? Array.from({ length: cols }, (_, j) => (j === c ? v : row[j] ?? "")) : row)));
@@ -453,8 +495,11 @@ function TableInput({
           <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
             {field.options.map((c, j) => (
               <div key={c} className="space-y-1">
-                <Label className="text-xs font-normal text-muted-foreground">{c}</Label>
-                <Input value={row[j] ?? ""} onChange={(e) => setCell(r, j, e.target.value)} maxLength={300} aria-label={`${c} (${r + 1})`} />
+                <Label className="text-xs font-normal text-muted-foreground">
+                  {c}
+                  {defOf(j).required ? " *" : ""}
+                </Label>
+                <CellInput def={defOf(j)} value={row[j] ?? ""} onChange={(v) => setCell(r, j, v)} label={`${c} (${r + 1})`} />
               </div>
             ))}
           </div>
@@ -505,7 +550,7 @@ export function CustomFieldValue({ field, value }: { field: CandidateField; valu
               <tr key={i} className="border-t">
                 {field.options.map((c, j) => (
                   <td key={c} className="px-2 py-1.5 align-top" dir="auto">
-                    {r[j] || "—"}
+                    {r[j] === "yes" ? t("Yes") : r[j] === "no" ? t("No") : r[j] || "—"}
                   </td>
                 ))}
               </tr>
@@ -602,9 +647,9 @@ function FieldFormDialog({
   const [required, setRequired] = useState(false);
   const [publicForm, setPublicForm] = useState(true);
   const [optionsText, setOptionsText] = useState("");
-  const [condField, setCondField] = useState(NONE);
-  const [condOp, setCondOp] = useState<ShowOp>("equals");
-  const [condValue, setCondValue] = useState("");
+  const [conds, setConds] = useState<ShowIf[]>([]);
+  const [match, setMatch] = useState<"all" | "any">("all");
+  const [cols, setCols] = useState<ColDraft[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -621,9 +666,16 @@ function FieldFormDialog({
       setPublicForm(editing.field.publicForm);
       setSectionId(sections.some((x) => x.id === editing.field.sectionId) ? editing.field.sectionId : sections[0]?.id ?? "");
       setOptionsText(editing.field.options.join("\n"));
-      setCondField(editing.field.showIf?.fieldId ?? NONE);
-      setCondOp(editing.field.showIf?.op ?? "equals");
-      setCondValue(editing.field.showIf?.value ?? "");
+      setConds(editing.field.showIf?.conds ?? []);
+      setMatch(editing.field.showIf?.match ?? "all");
+      setCols(
+        editing.field.type === "table"
+          ? editing.field.options.map((name, i) => {
+              const d = editing.field.columns[i];
+              return { name, type: d?.type ?? "text", required: d?.required ?? false, optionsText: (d?.options ?? []).join("\n") };
+            })
+          : []
+      );
     } else {
       setLabel("");
       setLabelCkb("");
@@ -632,18 +684,15 @@ function FieldFormDialog({
       setPublicForm(true);
       setSectionId(sections[0]?.id ?? "");
       setOptionsText("");
-      setCondField(NONE);
-      setCondOp("equals");
-      setCondValue("");
+      setConds([]);
+      setMatch("all");
+      setCols([{ name: "", type: "text", required: false, optionsText: "" }]);
     }
   }, [editing]);
 
   const selfId = editing?.mode === "edit" ? editing.field.id : null;
   const condParents = allFields.filter((f) => f.id !== selfId && f.type !== "file" && f.type !== "table");
-  const condParent = condParents.find((f) => f.id === condField);
-  const condChoices = condParent?.type === "yesno" ? ["yes", "no"] : condParent && hasOptions(condParent.type) ? condParent.options : null;
-  const showIf: ShowIf | null =
-    condParent ? { fieldId: condParent.id, op: condOp, value: condOp === "filled" ? "" : condValue } : null;
+  const showIf: ShowRule | null = conds.length ? { match, conds } : null;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -653,15 +702,33 @@ function FieldFormDialog({
       return;
     }
     const options = optionsText.split("\n").map((o) => o.trim()).filter(Boolean);
-    if (type === "table" && (options.length === 0 || options.length > 8)) {
-      setError(options.length === 0 ? "Add at least one column" : "Too many columns (max 8)");
-      return;
+    const columns: ColumnInput[] = cols
+      .filter((c) => c.name.trim() || c.optionsText.trim())
+      .map((c) => ({
+        name: c.name.trim(),
+        type: c.type,
+        required: c.required,
+        options: c.optionsText.split("\n").map((o) => o.trim()).filter(Boolean),
+      }));
+    if (type === "table") {
+      if (columns.length === 0 || columns.length > MAX_TABLE_COLUMNS) {
+        setError(columns.length === 0 ? "Add at least one column" : "Too many columns (max 8)");
+        return;
+      }
+      if (columns.some((c) => !c.name)) return setError("Every column needs a name");
+      if (new Set(columns.map((c) => c.name.toLowerCase())).size !== columns.length) return setError("Two columns have the same name");
+      const bad = columns.find((c) => c.type === "select" && c.options.length === 0);
+      if (bad) return setError(t("Add the choices for the “{name}” column", { name: bad.name }));
     }
     if (hasOptions(type) && options.length === 0) {
       setError("Add at least one option");
       return;
     }
-    if (showIf && showIf.op !== "filled" && !showIf.value) {
+    if (conds.some((c) => !c.fieldId)) {
+      setError("Choose a field for every condition");
+      return;
+    }
+    if (conds.some((c) => c.op !== "filled" && !c.value)) {
       setError("Choose the value that shows this field");
       return;
     }
@@ -685,7 +752,7 @@ function FieldFormDialog({
           publicForm,
           sectionId: sid,
           showIf,
-          ...(hasList(type) ? { options } : {}),
+          ...(type === "table" ? { columns } : hasList(type) ? { options } : {}),
         });
         toast.success("Field updated");
       } else {
@@ -697,7 +764,7 @@ function FieldFormDialog({
           publicForm,
           sectionId: sid,
           showIf,
-          ...(hasList(type) ? { options } : {}),
+          ...(type === "table" ? { columns } : hasList(type) ? { options } : {}),
         });
         toast.success("Field added");
       }
@@ -746,15 +813,16 @@ function FieldFormDialog({
               <p className="text-xs text-muted-foreground">{t("The type cannot be changed after the field is created.")}</p>
             )}
           </div>
-          {hasList(type) && (
+          {type === "table" && <ColumnsEditor cols={cols} onChange={setCols} />}
+          {hasList(type) && type !== "table" && (
             <div className="space-y-2">
-              <Label htmlFor="field-options">{type === "table" ? t("Columns (one per line, max 8)") : t("Options (one per line)")}</Label>
+              <Label htmlFor="field-options">{t("Options (one per line)")}</Label>
               <Textarea
                 id="field-options"
                 rows={6}
                 value={optionsText}
                 onChange={(e) => setOptionsText(e.target.value)}
-                placeholder={type === "table" ? "Name\nRelationship\nYear" : "Option A\nOption B\nOption C"}
+                placeholder={"Option A\nOption B\nOption C"}
               />
             </div>
           )}
@@ -787,56 +855,7 @@ function FieldFormDialog({
               </div>
             )}
           </div>
-          <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-            <Label>{t("Show this field only if…")}</Label>
-            <Select
-              value={condField}
-              onValueChange={(v) => {
-                setCondField(v);
-                setCondValue("");
-                const p = condParents.find((f) => f.id === v);
-                setCondOp(p && !(p.type === "yesno" || hasOptions(p.type)) ? "filled" : "equals");
-              }}
-            >
-              <SelectTrigger aria-label={t("Show this field only if…")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-72">
-                <SelectItem value={NONE}>{t("Always show")}</SelectItem>
-                {condParents.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {fieldLabel(f, locale)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {condParent && (
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Select value={condOp} onValueChange={(v) => setCondOp(v as ShowOp)}>
-                  <SelectTrigger aria-label={t("Condition")}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {condChoices && <SelectItem value="equals">{t("is")}</SelectItem>}
-                    {condChoices && <SelectItem value="notEquals">{t("is not")}</SelectItem>}
-                    <SelectItem value="filled">{t("has an answer")}</SelectItem>
-                  </SelectContent>
-                </Select>
-                {condOp !== "filled" && condChoices && (
-                  <SearchableSelect
-                    value={condValue}
-                    onChange={(v) => setCondValue(v ?? "")}
-                    ariaLabel={t("Select a value")}
-                    options={condChoices.map((o) => ({ value: o, label: o === "yes" ? t("Yes") : o === "no" ? t("No") : o }))}
-                    placeholder={t("Select a value")}
-                  />
-                )}
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              {t("The field appears on the forms only when this condition is met. Hidden answers are not saved.")}
-            </p>
-          </div>
+          <ConditionsEditor conds={conds} match={match} onChange={setConds} onMatch={setMatch} parents={condParents} />
           <div className="flex items-center gap-2">
             <Checkbox id="field-required" checked={required} onCheckedChange={(c) => setRequired(c === true)} />
             <Label htmlFor="field-required" className="font-normal">
@@ -866,6 +885,207 @@ function FieldFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ---------------------- table columns (type + required) ---------------------- */
+
+type ColDraft = { name: string; type: ColumnType; required: boolean; optionsText: string };
+
+function ColumnsEditor({ cols, onChange }: { cols: ColDraft[]; onChange: (c: ColDraft[]) => void }) {
+  const { t } = useI18n();
+  const typeNames: Record<ColumnType, string> = {
+    text: t("Text"),
+    number: t("Number"),
+    date: t("Date"),
+    email: t("Email"),
+    phone: t("Phone"),
+    yesno: t("Yes / No"),
+    select: t("Dropdown (single choice)"),
+  };
+  const set = (i: number, patch: Partial<ColDraft>) => onChange(cols.map((c, k) => (k === i ? { ...c, ...patch } : c)));
+  return (
+    <div className="space-y-2">
+      <Label>{t("Columns (max 8)")}</Label>
+      <div className="space-y-2">
+        {cols.map((c, i) => (
+          <div key={i} className="space-y-2 rounded-lg border bg-muted/20 p-3">
+            <div className="flex items-center gap-2">
+              <Input
+                value={c.name}
+                onChange={(e) => set(i, { name: e.target.value })}
+                placeholder={t("Column name")}
+                aria-label={t("Column name")}
+                maxLength={100}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0 text-red-600 hover:text-red-600"
+                aria-label={t("Remove")}
+                disabled={cols.length <= 1}
+                onClick={() => onChange(cols.filter((_, k) => k !== i))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="min-w-44 flex-1">
+                <Select value={c.type} onValueChange={(v) => set(i, { type: v as ColumnType })}>
+                  <SelectTrigger aria-label={t("Column type")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COLUMN_TYPES.map((ct) => (
+                      <SelectItem key={ct} value={ct}>
+                        {typeNames[ct]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox id={`col-req-${i}`} checked={c.required} onCheckedChange={(v) => set(i, { required: v === true })} />
+                <Label htmlFor={`col-req-${i}`} className="font-normal">
+                  {t("Required")}
+                </Label>
+              </div>
+            </div>
+            {c.type === "select" && (
+              <Textarea
+                rows={3}
+                value={c.optionsText}
+                onChange={(e) => set(i, { optionsText: e.target.value })}
+                placeholder={t("Choices (one per line)")}
+                aria-label={t("Choices (one per line)")}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={cols.length >= MAX_TABLE_COLUMNS}
+        onClick={() => onChange([...cols, { name: "", type: "text", required: false, optionsText: "" }])}
+      >
+        <Plus className="me-1.5 h-3.5 w-3.5" /> {t("Add column")}
+      </Button>
+      <p className="text-xs text-muted-foreground">{t("A required column must be filled in every row that is added.")}</p>
+    </div>
+  );
+}
+
+/* ------------------------ "show only if…" (many conditions) ------------------------ */
+
+function ConditionsEditor({
+  conds,
+  match,
+  parents,
+  onChange,
+  onMatch,
+}: {
+  conds: ShowIf[];
+  match: "all" | "any";
+  parents: CandidateField[];
+  onChange: (c: ShowIf[]) => void;
+  onMatch: (m: "all" | "any") => void;
+}) {
+  const { t, locale } = useI18n();
+  const set = (i: number, patch: Partial<ShowIf>) => onChange(conds.map((c, k) => (k === i ? { ...c, ...patch } : c)));
+  return (
+    <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+      <Label>{t("Show this field only if…")}</Label>
+      {conds.length === 0 && <p className="text-sm text-muted-foreground">{t("Always show")}</p>}
+      {conds.length > 1 && (
+        <Select value={match} onValueChange={(v) => onMatch(v as "all" | "any")}>
+          <SelectTrigger aria-label={t("How the conditions combine")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("All of these conditions are met")}</SelectItem>
+            <SelectItem value="any">{t("Any one of these conditions is met")}</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+      {conds.map((c, i) => {
+        const parent = parents.find((f) => f.id === c.fieldId);
+        const choices = parent?.type === "yesno" ? ["yes", "no"] : parent && hasOptions(parent.type) ? parent.options : null;
+        return (
+          <div key={i} className="space-y-2 rounded-md border bg-background p-2">
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <Select
+                  value={c.fieldId || NONE}
+                  onValueChange={(v) => {
+                    const p = parents.find((f) => f.id === v);
+                    set(i, { fieldId: v === NONE ? "" : v, value: "", op: p && !(p.type === "yesno" || hasOptions(p.type)) ? "filled" : "equals" });
+                  }}
+                >
+                  <SelectTrigger aria-label={t("Show this field only if…")}>
+                    <SelectValue placeholder={t("Select a field")} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {parents.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {fieldLabel(f, locale)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0 text-red-600 hover:text-red-600"
+                aria-label={t("Remove")}
+                onClick={() => onChange(conds.filter((_, k) => k !== i))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+            {parent && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Select value={c.op} onValueChange={(v) => set(i, { op: v as ShowOp })}>
+                  <SelectTrigger aria-label={t("Condition")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {choices && <SelectItem value="equals">{t("is")}</SelectItem>}
+                    {choices && <SelectItem value="notEquals">{t("is not")}</SelectItem>}
+                    <SelectItem value="filled">{t("has an answer")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                {c.op !== "filled" && choices && (
+                  <SearchableSelect
+                    value={c.value}
+                    onChange={(v) => set(i, { value: v ?? "" })}
+                    ariaLabel={t("Select a value")}
+                    options={choices.map((o) => ({ value: o, label: o === "yes" ? t("Yes") : o === "no" ? t("No") : o }))}
+                    placeholder={t("Select a value")}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={conds.length >= MAX_CONDITIONS || parents.length === 0}
+        onClick={() => onChange([...conds, { fieldId: "", op: "equals", value: "" }])}
+      >
+        <Plus className="me-1.5 h-3.5 w-3.5" /> {t("Add condition")}
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        {t("The field appears on the forms only when this condition is met. Hidden answers are not saved.")}
+      </p>
+    </div>
   );
 }
 

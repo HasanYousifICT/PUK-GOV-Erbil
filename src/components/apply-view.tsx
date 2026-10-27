@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CustomFieldInput } from "@/components/candidate-fields";
 import { PhotoPicker } from "@/components/photo-picker";
 import { apiClient, Candidate, PortalData } from "@/lib/client";
-import { CandidateField, CandidateSection, CustomData, fieldLabel, groupFields, isEmptyValue, isFieldVisible, isPersonalSection, parseCustomData, sectionLabel } from "@/lib/candidate-fields";
+import { CandidateField, CandidateSection, CustomData, fieldLabel, groupFields, isEmptyValue, isFieldVisible, isTableValue, tableProblem, isPersonalSection, parseCustomData, sectionLabel } from "@/lib/candidate-fields";
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
 
 type PublicJob = { id: string; title: string; location: string; employmentType: string };
@@ -149,6 +149,18 @@ export function ApplyView({
     for (const f of fields) {
       if (f.required && isFieldVisible(f, custom, fields) && isEmptyValue(custom[f.id])) {
         return setError(t("“{name}” is required", { name: fieldLabel(f, locale) }));
+      }
+      const tv = custom[f.id];
+      if (f.type === "table" && isTableValue(tv) && isFieldVisible(f, custom, fields)) {
+        const problem = tableProblem(f, tv.rows);
+        if (problem) {
+          return setError(
+            t(problem.kind === "required" ? "In “{name}”, the “{col}” column is required" : "In “{name}”, the “{col}” column has an invalid value", {
+              name: fieldLabel(f, locale),
+              col: problem.column,
+            })
+          );
+        }
       }
     }
     setBusy(true);

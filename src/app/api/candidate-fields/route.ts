@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAdmin, requireAuth, str } from "@/lib/api";
 import { FIELD_TYPES, hasOptions, MAX_FIELDS, FieldType } from "@/lib/candidate-fields";
-import { loadFields, loadSections, normalizeColumns, normalizeOptions, normalizeShowIf, serializeField } from "@/lib/candidate-custom";
+import { loadFields, loadSections, normalizeColumnDefs, normalizeOptions, normalizeShowIf, serializeField } from "@/lib/candidate-custom";
 
 /** GET /api/candidate-fields — all custom field definitions in display order. */
 export async function GET(req: Request) {
@@ -22,8 +22,8 @@ export async function POST(req: Request) {
     const type = str(body.type);
     if (!(FIELD_TYPES as readonly string[]).includes(type)) throw new ApiError(400, "Invalid field type");
 
-    const options =
-      type === "table" ? normalizeColumns(body.options) : hasOptions(type as FieldType) ? normalizeOptions(body.options) : [];
+    const cols = type === "table" ? normalizeColumnDefs(body.columns ?? body.options) : null;
+    const options = cols ? cols.names : hasOptions(type as FieldType) ? normalizeOptions(body.options) : [];
     if (hasOptions(type as FieldType) && options.length === 0) throw new ApiError(400, "Add at least one option");
 
     const sections = await loadSections();
@@ -45,6 +45,7 @@ export async function POST(req: Request) {
         labelCkb: str(body.labelCkb).trim().slice(0, 100),
         type,
         options: JSON.stringify(options),
+        columnDefs: JSON.stringify(cols?.defs ?? []),
         required: body.required === true,
         publicForm: body.publicForm !== false,
         sectionId,

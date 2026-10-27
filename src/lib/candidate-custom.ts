@@ -19,6 +19,15 @@ import {
   parseCustomData,
   parseOptions,
   parseShowIf,
+  parseColumnDefs,
+  tableProblem,
+  COLUMN_TYPES,
+  ColumnDef,
+  ColumnType,
+  MAX_COLUMN_OPTIONS,
+  MAX_CONDITIONS,
+  ShowIf,
+  ShowRule,
 } from "@/lib/candidate-fields";
 import { getStorage } from "@/lib/storage";
 import { db } from "@/lib/db";
@@ -33,6 +42,7 @@ type FieldRow = {
   publicForm: boolean;
   sectionId: string;
   showIf: string;
+  columnDefs?: string;
   sortOrder: number;
 };
 
@@ -43,6 +53,7 @@ export function serializeField(row: FieldRow): CandidateField {
     labelCkb: row.labelCkb,
     type: (FIELD_TYPES as readonly string[]).includes(row.type) ? (row.type as FieldType) : "text",
     options: parseOptions(row.options),
+    columns: parseColumnDefs(row.columnDefs, row.type === "table" ? parseOptions(row.options).length : 0),
     required: row.required,
     publicForm: row.publicForm,
     sectionId: row.sectionId,
@@ -111,6 +122,7 @@ export function validateCustomData(
   const src = input as Record<string, unknown>;
   const data: CustomData = {};
   const missing = new Set<string>();
+  const tableErrors = new Map<string, string>();
 
   for (const f of fields) {
     const raw = src[f.id];
@@ -193,6 +205,9 @@ export function validateCustomData(
               return Array.from({ length: cols }, (_, i) => (typeof r[i] === "string" ? r[i].trim().slice(0, 300) : ""));
             })
             .filter((r) => r.some(Boolean));
+          const problem = tableProblem(f, rows);
+          if (problem?.kind === "invalid") throw new ApiError(400, `Invalid value in the “${problem.column}” column`);
+          if (problem?.kind === "required" && enforceRequired) tableErrors.set(f.id, `The “${problem.column}” column is required`);
           value = rows.length ? { rows } : undefined;
           break;
         }
@@ -219,6 +234,8 @@ export function validateCustomData(
     delete data[f.id];
     missing.delete(f.id);
   }
+  for (const f of hidden) tableErrors.delete(f.id);
+  for (const msg of tableErrors.values()) throw new ApiError(400, msg);
   if (missing.size > 0) throw new ApiError(400, "A required custom field is missing");
 
   const removedFiles: string[] = [];
@@ -244,37 +261,67 @@ export function fileKeysOf(raw: string | null | undefined): string[] {
     .map((v) => v.key);
 }
 
-/** Table columns: same clean-up as options, but few and short. */
-export function normalizeColumns(input: unknown): string[] {
-  const cols = normalizeOptions(input);
-  if (cols.length === 0) throw new ApiError(400, "Add at least one column");
-  if (cols.length > MAX_TABLE_COLUMNS) throw new ApiError(400, "Too many columns (max 8)");
-  return cols;
+/**
+ * Table columns sent by the client: `[{ name, type, required, options }]` (an older client sends plain
+ * names). Returns the names (stored in `options`) and one definition per column.
+ */
+export function normalizeColumnDefs(input: unknown): { names: string[]; defs: ColumnDef[] } {
+  if (!Array.isArray(input) || input.length === 0) throw new ApiError(400, "Add at least one column");
+  if (input.length > MAX_TABLE_COLUMNS) throw new ApiError(400, "Too many columns (max 8)");
+  const names: string[] = [];
+  const defs: ColumnDef[] = [];
+  const seen = new Set<string>();
+  for (const item of input) {
+    const o = (typeof item === "string" ? { name: item } : item) as Record<string, unknown> | null;
+    const name = typeof o?.name === "string" ? o.name.trim() : "";
+    if (!name) throw new ApiError(400, "Every column needs a name");
+    if (name.length > 100) throw new ApiError(400, "Option is too long (max 100 characters)");
+    if (seen.has(name.toLowerCase())) throw new ApiError(400, "Two columns have the same name");
+    seen.add(name.toLowerCase());
+    const type = (COLUMN_TYPES as readonly string[]).includes(o?.type as string) ? (o!.type as ColumnType) : "text";
+    let options: string[] = [];
+    if (type === "select") {
+      options = normalizeOptions(o?.options);
+      if (options.length === 0) throw new ApiError(400, `Add the choices for the “${name}” column`);
+      if (options.length > MAX_COLUMN_OPTIONS) throw new ApiError(400, "Too many options (max 100)");
+    }
+    names.push(name);
+    defs.push({ type, required: o?.required === true, options });
+  }
+  return { names, defs };
 }
 
-/**
- * Validate a "show only if" condition sent by the client. Returns the JSON to store
- * ("" = no condition). The controlling field must exist, differ from the field
- * itself and must not lead back to it.
- */
-export function normalizeShowIf(input: unknown, selfId: string | null, fields: CandidateField[]): string {
-  if (input === null || input === undefined || input === "") return "";
-  if (typeof input !== "object" || Array.isArray(input)) throw new ApiError(400, "Invalid condition");
-  const src = input as Record<string, unknown>;
-  const fieldId = typeof src.fieldId === "string" ? src.fieldId : "";
-  if (!fieldId) return "";
-  const op = typeof src.op === "string" ? src.op : "";
+/** Kept for older callers: plain column names only. */
+export function normalizeColumns(input: unknown): string[] {
+  return normalizeColumnDefs(input).names;
+}
+
+function checkCond(src: unknown, selfId: string | null, fields: CandidateField[]): ShowIf | null {
+  if (!src || typeof src !== "object" || Array.isArray(src)) throw new ApiError(400, "Invalid condition");
+  const o = src as Record<string, unknown>;
+  const fieldId = typeof o.fieldId === "string" ? o.fieldId : "";
+  if (!fieldId) return null; // an unfinished row is simply dropped
+  const op = typeof o.op === "string" ? o.op : "";
   if (!(SHOW_OPS as readonly string[]).includes(op)) throw new ApiError(400, "Invalid condition");
   const parent = fields.find((f) => f.id === fieldId);
   if (!parent) throw new ApiError(400, "Condition field not found");
   if (selfId && fieldId === selfId) throw new ApiError(400, "A field cannot depend on itself");
-  // walk up the chain: it must never reach this field
-  let cur: CandidateField | undefined = parent;
-  for (let i = 0; cur && i < 50; i++) {
-    if (selfId && cur.id === selfId) throw new ApiError(400, "Conditions cannot form a loop");
-    cur = cur.showIf ? fields.find((f) => f.id === cur!.showIf!.fieldId) : undefined;
+  // walk everything this condition's field depends on: it must never reach this field
+  if (selfId) {
+    const stack = [parent];
+    const seen = new Set<string>();
+    while (stack.length) {
+      const cur = stack.pop()!;
+      if (cur.id === selfId) throw new ApiError(400, "Conditions cannot form a loop");
+      if (seen.has(cur.id)) continue;
+      seen.add(cur.id);
+      for (const c of cur.showIf?.conds ?? []) {
+        const next = fields.find((f) => f.id === c.fieldId);
+        if (next) stack.push(next);
+      }
+    }
   }
-  let value = typeof src.value === "string" ? src.value.trim().slice(0, 200) : "";
+  let value = typeof o.value === "string" ? o.value.trim().slice(0, 200) : "";
   if (op !== "filled") {
     if (!value) throw new ApiError(400, "Choose the value that shows this field");
     if (parent.type === "yesno" && value !== "yes" && value !== "no") throw new ApiError(400, "Invalid condition");
@@ -282,5 +329,22 @@ export function normalizeShowIf(input: unknown, selfId: string | null, fields: C
   } else {
     value = "";
   }
-  return JSON.stringify({ fieldId, op, value });
+  return { fieldId, op: op as ShowIf["op"], value };
+}
+
+/**
+ * Validate the "show only if" condition(s) sent by the client — one condition (older clients) or
+ * `{ match: "all" | "any", conds: [...] }`. Returns the JSON to store ("" = always shown). Each
+ * controlling field must exist, differ from the field itself and must not lead back to it.
+ */
+export function normalizeShowIf(input: unknown, selfId: string | null, fields: CandidateField[]): string {
+  if (input === null || input === undefined || input === "") return "";
+  if (typeof input !== "object" || Array.isArray(input)) throw new ApiError(400, "Invalid condition");
+  const src = input as Record<string, unknown>;
+  const list: unknown[] = Array.isArray(src.conds) ? src.conds : [src];
+  if (list.length > MAX_CONDITIONS) throw new ApiError(400, "Too many conditions (max 10)");
+  const conds = list.map((c) => checkCond(c, selfId, fields)).filter((c): c is ShowIf => !!c);
+  if (conds.length === 0) return "";
+  const rule: ShowRule = { match: src.match === "any" ? "any" : "all", conds };
+  return JSON.stringify(rule);
 }

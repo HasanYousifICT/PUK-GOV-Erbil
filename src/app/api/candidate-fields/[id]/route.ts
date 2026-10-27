@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAdmin, str } from "@/lib/api";
 import { FieldType, hasOptions, isFileValue, parseCustomData, parseShowIf } from "@/lib/candidate-fields";
-import { deleteFiles, loadFields, loadSections, normalizeColumns, normalizeOptions, normalizeShowIf, serializeField } from "@/lib/candidate-custom";
+import { deleteFiles, loadFields, loadSections, normalizeColumnDefs, normalizeOptions, normalizeShowIf, serializeField } from "@/lib/candidate-custom";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,7 +14,7 @@ export async function PUT(req: Request, { params }: Params) {
     const existing = await db.candidateField.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Field not found");
 
-    const data: { label?: string; labelCkb?: string; options?: string; required?: boolean; publicForm?: boolean; sectionId?: string; showIf?: string } = {};
+    const data: { label?: string; labelCkb?: string; options?: string; columnDefs?: string; required?: boolean; publicForm?: boolean; sectionId?: string; showIf?: string } = {};
     if ("label" in body) {
       const label = str(body.label).trim();
       if (!label) throw new ApiError(400, "Field name is required");
@@ -34,8 +34,10 @@ export async function PUT(req: Request, { params }: Params) {
       data.sectionId = sid;
     }
     if ("showIf" in body) data.showIf = normalizeShowIf(body.showIf, id, await loadFields());
-    if ("options" in body && existing.type === "table") {
-      data.options = JSON.stringify(normalizeColumns(body.options));
+    if (("columns" in body || "options" in body) && existing.type === "table") {
+      const cols = normalizeColumnDefs(body.columns ?? body.options);
+      data.options = JSON.stringify(cols.names);
+      data.columnDefs = JSON.stringify(cols.defs);
     } else if ("options" in body && hasOptions(existing.type as FieldType)) {
       const options = normalizeOptions(body.options);
       if (options.length === 0) throw new ApiError(400, "Add at least one option");
@@ -71,7 +73,10 @@ export async function DELETE(req: Request, { params }: Params) {
     // fields that were shown by this one become always visible
     const dependents = await db.candidateField.findMany({ where: { showIf: { contains: id } }, select: { id: true, showIf: true } });
     for (const d of dependents) {
-      if (parseShowIf(d.showIf)?.fieldId === id) await db.candidateField.update({ where: { id: d.id }, data: { showIf: "" } });
+      const rule = parseShowIf(d.showIf);
+      if (!rule || !rule.conds.some((c) => c.fieldId === id)) continue;
+      const left = rule.conds.filter((c) => c.fieldId !== id);
+      await db.candidateField.update({ where: { id: d.id }, data: { showIf: left.length ? JSON.stringify({ ...rule, conds: left }) : "" } });
     }
     await db.candidateField.delete({ where: { id } });
     await deleteFiles(files);

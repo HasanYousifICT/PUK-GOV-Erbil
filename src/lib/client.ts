@@ -1,7 +1,7 @@
 // OpenRecruitOS — shared client-side types & typed API client
 
 import type { JobCategory } from "@/lib/categories";
-import type { CandidateField, CandidateSection, CustomData, FieldType, FileValue, ShowIf } from "@/lib/candidate-fields";
+import type { CandidateField, CandidateSection, ColumnType, CustomData, FieldType, FileValue, ShowRule } from "@/lib/candidate-fields";
 import type { CandidateFilters } from "@/lib/candidate-filters";
 
 import type { Permissions } from "@/lib/permissions";
@@ -95,6 +95,9 @@ export type JobTitle = {
   titleCkb: string;
   jobCount?: number;
 };
+
+/** A table column as sent when saving a field. */
+export type ColumnInput = { name: string; type: ColumnType; required: boolean; options: string[] };
 
 export type JobLite = { id: string; title: string; location: string; status: string; categoryId: string | null };
 
@@ -376,14 +379,15 @@ export const apiClient = {
     labelCkb?: string;
     type: FieldType;
     options?: string[];
+    columns?: ColumnInput[];
     required?: boolean;
     publicForm?: boolean;
     sectionId?: string;
-    showIf?: ShowIf | null;
+    showIf?: ShowRule | null;
   }) => api<CandidateField>("/api/candidate-fields", { method: "POST", body: JSON.stringify(data) }),
   updateCandidateField: (
     id: string,
-    data: { label?: string; labelCkb?: string; options?: string[]; required?: boolean; publicForm?: boolean; sectionId?: string; showIf?: ShowIf | null }
+    data: { label?: string; labelCkb?: string; options?: string[]; columns?: ColumnInput[]; required?: boolean; publicForm?: boolean; sectionId?: string; showIf?: ShowRule | null }
   ) => api<CandidateField>(`/api/candidate-fields/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteCandidateField: (id: string) =>
     api<{ ok: boolean }>(`/api/candidate-fields/${id}`, { method: "DELETE" }),
