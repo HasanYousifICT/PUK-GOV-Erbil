@@ -599,18 +599,9 @@ export function CustomFieldValue({ field, value, fit = false }: { field: Candida
       </div>
     );
   }
-  if (isFileValue(value) && fit && /\.(jpe?g|png|webp|gif)$/i.test(value.name || value.key)) {
-    // ID cards and other pictures are shown in the CV itself: small, but sharp enough to read
-    return (
-      <span data-keep className="block">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={apiClient.resumeUrl(value.key)}
-          alt={value.name}
-          className="block max-h-[190px] max-w-full rounded border border-neutral-300 bg-white object-contain"
-        />
-      </span>
-    );
+  if (isFileValue(value) && fit) {
+    // in the CV an attachment is only marked as attached (no file name, no picture, no button)
+    return <span data-keep>{t("Attached")}</span>;
   }
   if (isFileValue(value)) {
     return (

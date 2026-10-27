@@ -984,4 +984,5 @@ export const ckb: Record<string, string> = {
   "Could not save the draft": "نەتوانرا ڕەشنووسەکە پاشەکەوت بکرێت",
   "Too many saved drafts — finish or delete some first": "ڕەشنووسی پاشەکەوتکراو زۆرە — هەندێکیان تەواو بکە یان بیانسڕەوە",
   "Draft not found": "ڕەشنووس نەدۆزرایەوە",
+  "Attached": "هاوپێچکراوە",
 };
