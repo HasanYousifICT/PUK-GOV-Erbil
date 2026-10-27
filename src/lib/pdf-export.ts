@@ -140,6 +140,38 @@ function bestCut(ctx: CanvasRenderingContext2D, width: number, want: number, sea
   return want;
 }
 
+/**
+ * Blocks that must not be cut by a page break (a table row, a field with its label, a picture, a heading
+ * together with what follows it). Positions are in CSS pixels from the top of `el`.
+ */
+function keepTogetherBlocks(el: HTMLElement, maxHeight: number): { top: number; bottom: number }[] {
+  const base = el.getBoundingClientRect().top;
+  const out: { top: number; bottom: number }[] = [];
+  el.querySelectorAll("tr, dl > div, img, h1, h2, h3, [data-keep]").forEach((n) => {
+    const r = (n as HTMLElement).getBoundingClientRect();
+    if (r.height <= 0) return;
+    let top = r.top - base;
+    let bottom = r.bottom - base;
+    // a heading stays with the start of what follows it
+    if (/^H[1-3]$/.test(n.tagName)) bottom += 70;
+    if (bottom - top > maxHeight) return; // too tall to keep whole: its own rows decide
+    out.push({ top, bottom });
+  });
+  return out;
+}
+
+/** The page break at (or just above) `want` that does not fall inside a block; null when none is found in a reasonable range. */
+function cutOutsideBlocks(blocks: { top: number; bottom: number }[], want: number, min: number): number | null {
+  let y = want;
+  for (let guard = 0; guard < 200; guard++) {
+    const hit = blocks.find((b) => y > b.top + 1 && y < b.bottom - 1);
+    if (!hit) return y >= min ? y : null;
+    y = hit.top;
+    if (y < min) return null;
+  }
+  return null;
+}
+
 /* ------------------------------ PDF file ------------------------------ */
 
 type PageImage = { jpeg: Uint8Array; w: number; h: number; wPt: number; hPt: number };
@@ -270,6 +302,8 @@ export async function downloadElementAsPdf(source: HTMLElement, fileName: string
 async function renderToPdf(el: HTMLElement, fileName: string): Promise<void> {
   const width = Math.ceil(el.getBoundingClientRect().width);
   const height = Math.ceil(el.scrollHeight);
+  const pageCssH = ((A4_H - MARGIN * 2) / (A4_W - MARGIN * 2)) * width; // one page, in CSS pixels at this width
+  const blocks = keepTogetherBlocks(el, pageCssH * 0.4);
 
   const clone = el.cloneNode(true) as HTMLElement;
   inlineStyles(el, clone);
@@ -307,7 +341,11 @@ async function renderToPdf(el: HTMLElement, fileName: string): Promise<void> {
   let y = 0;
   while (y < ch) {
     let end = Math.min(ch, y + pagePx);
-    if (end < ch) end = bestCut(ctx, cw, end, Math.round(pagePx * 0.15));
+    if (end < ch) {
+      // first choice: a break between blocks (never through a row of text or a picture); else the nearest blank line
+      const smart = cutOutsideBlocks(blocks, end / ratio, (y + pagePx * 0.4) / ratio);
+      end = smart !== null ? Math.round(smart * ratio) : bestCut(ctx, cw, end, Math.round(pagePx * 0.15));
+    }
     if (end <= y) end = Math.min(ch, y + pagePx);
     const part = document.createElement("canvas");
     part.width = cw;
