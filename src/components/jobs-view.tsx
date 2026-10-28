@@ -90,6 +90,8 @@ export function JobFormDialog({
     employmentType: string;
     status: Job["status"];
     categoryId: string | null;
+    specialist: boolean;
+    specialistNote: string;
   }>({
     title: "",
     description: "",
@@ -100,8 +102,33 @@ export function JobFormDialog({
     employmentType: "Full-time",
     status: "Open",
     categoryId: null,
+    specialist: false,
+    specialistNote: "",
   });
   const { index: catIndex } = useCategories();
+  // another job already has this title and classification: this one must be a described specialist job
+  const [sameCount, setSameCount] = useState(0);
+  useEffect(() => {
+    if (!open || !form.title.trim() || !form.categoryId) {
+      setSameCount(0);
+      return;
+    }
+    let live = true;
+    const id = setTimeout(() => {
+      apiClient
+        .jobDuplicates(form.title, form.categoryId!, job?.id)
+        .then((r) => {
+          if (!live) return;
+          setSameCount(r.count);
+          if (r.count > 0) setForm((f) => (f.specialist ? f : { ...f, specialist: true }));
+        })
+        .catch(() => live && setSameCount(0));
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(id);
+    };
+  }, [open, form.title, form.categoryId, job?.id]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,6 +145,8 @@ export function JobFormDialog({
         employmentType: job?.employmentType ?? "Full-time",
         status: job?.status ?? "Open",
         categoryId: job?.categoryId ?? null,
+        specialist: job?.specialist ?? false,
+        specialistNote: job?.specialistNote ?? "",
       });
     }
   }, [open, job]);
@@ -131,6 +160,10 @@ export function JobFormDialog({
     }
     if (!form.categoryId) {
       setError("Please choose a job classification");
+      return;
+    }
+    if (form.specialist && !form.specialistNote.trim()) {
+      setError("Describe the specialist");
       return;
     }
     setBusy(true);
@@ -151,7 +184,7 @@ export function JobFormDialog({
     }
   }
 
-  const set = (key: Exclude<keyof typeof form, "categoryId">) => (value: string) => setForm((f) => ({ ...f, [key]: value }));
+  const set = (key: Exclude<keyof typeof form, "categoryId" | "specialist">) => (value: string) => setForm((f) => ({ ...f, [key]: value }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -260,6 +293,40 @@ export function JobFormDialog({
               </SelectContent>
             </Select>
           </div>
+
+          <div className="space-y-2">
+            <Label>{t("Specialist")}</Label>
+            <Select
+              value={form.specialist ? "yes" : "no"}
+              onValueChange={(v) => setForm((f) => ({ ...f, specialist: v === "yes", specialistNote: v === "yes" ? f.specialistNote : "" }))}
+            >
+              <SelectTrigger aria-label={t("Specialist")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="no" disabled={sameCount > 0}>{t("No")}</SelectItem>
+                <SelectItem value="yes">{t("Yes")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {sameCount > 0 && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 sm:col-span-2">
+              {t("A job with this title and classification already exists, so this one must be a specialist job. Describe the specialist below.")}
+            </p>
+          )}
+          {form.specialist && (
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="job-specialist-note">{t("Describe the specialist *")}</Label>
+              <Textarea
+                id="job-specialist-note"
+                rows={3}
+                maxLength={500}
+                placeholder={t("e.g. the specialty, qualification or area this position is for")}
+                value={form.specialistNote}
+                onChange={(e) => set("specialistNote")(e.target.value)}
+              />
+            </div>
+          )}
 
           {error && (
             <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 sm:col-span-2">
@@ -467,6 +534,11 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
                       {job.categoryId && (
                         <p className="max-w-xs truncate text-xs text-primary">
                           {categoryPathText(job.categoryId, catIndex, locale)}
+                        </p>
+                      )}
+                      {job.specialist && (
+                        <p className="max-w-xs truncate text-xs font-medium text-amber-700" title={job.specialistNote}>
+                          {t("Specialist")}: {job.specialistNote}
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground">

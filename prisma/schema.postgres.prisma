@@ -37,6 +37,8 @@ model Job {
   employmentType String   @default("Full-time") // Full-time | Part-time | Contract | Internship
   status         String   @default("Open") // Open | Closed
   categoryId     String?  // optional job classification (any level of the category tree)
+  specialist     Boolean  @default(false) // a specialist position (e.g. a particular specialty within the same title)
+  specialistNote String   @default("")    // describes the specialist position when specialist is true
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   applications   Application[]
@@ -45,6 +47,7 @@ model Job {
   @@index([status])
   @@index([categoryId])
   @@index([createdAt])
+  @@index([title, categoryId])
 }
 
 // Job classification: a self-referencing tree of any depth (ISCO-08 levels

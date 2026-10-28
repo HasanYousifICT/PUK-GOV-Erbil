@@ -103,7 +103,7 @@ export type DraftRow = { id: string; label: string; updatedAt: string; createdAt
 /** A table column as sent when saving a field. */
 export type ColumnInput = { name: string; type: ColumnType; required: boolean; options: string[] };
 
-export type JobLite = { id: string; title: string; location: string; status: string; categoryId: string | null };
+export type JobLite = { id: string; title: string; location: string; status: string; categoryId: string | null; specialist?: boolean; specialistNote?: string };
 
 export type Job = {
   id: string;
@@ -116,6 +116,8 @@ export type Job = {
   employmentType: string;
   status: "Open" | "Closed";
   categoryId?: string | null;
+  specialist?: boolean;
+  specialistNote?: string;
   createdAt: string;
   updatedAt: string;
   _count?: { applications: number };
@@ -317,6 +319,9 @@ export const apiClient = {
   /* jobs */
   listJobs: (status?: string) => api<Job[]>(`/api/jobs${qs({ status })}`),
   /** One page of jobs (server-side search, status and classification filters). */
+  /** How many other jobs share this title and classification. */
+  jobDuplicates: (title: string, categoryId: string, excludeId?: string) =>
+    api<{ count: number }>(`/api/jobs/duplicates${qs({ title, categoryId, excludeId })}`),
   listJobsPage: (p: { page?: number; pageSize?: number; q?: string; status?: string; categoryId?: string }) =>
     api<Paged<Job>>(`/api/jobs${qs({ pageSize: 50, ...p, page: p.page ?? 1 })}`),
   /** A short list for pickers: at most `limit` jobs matching the search. */

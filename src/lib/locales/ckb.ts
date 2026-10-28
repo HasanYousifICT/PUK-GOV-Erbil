@@ -985,4 +985,11 @@ export const ckb: Record<string, string> = {
   "Too many saved drafts — finish or delete some first": "ڕەشنووسی پاشەکەوتکراو زۆرە — هەندێکیان تەواو بکە یان بیانسڕەوە",
   "Draft not found": "ڕەشنووس نەدۆزرایەوە",
   "Attached": "هاوپێچکراوە",
+  "Specialist": "پسپۆڕ",
+  "Describe the specialist *": "پسپۆڕییەکە باس بکە *",
+  "Describe the specialist": "پسپۆڕییەکە باس بکە",
+  "e.g. the specialty, qualification or area this position is for": "بۆ نموونە: پسپۆڕی، بڕوانامە یان بوارێک کە ئەم پێگەیە بۆی هەیە",
+  "A job with this title and classification already exists, so this one must be a specialist job. Describe the specialist below.": "کارێک بەم ناونیشان و پۆلێنکردنە پێشتر هەیە، بۆیە ئەمە دەبێت کاری پسپۆڕ بێت. لە خوارەوە پسپۆڕییەکە باس بکە.",
+  "A job with this title and classification already exists — this one must be a specialist job": "کارێک بەم ناونیشان و پۆلێنکردنە پێشتر هەیە — ئەمە دەبێت کاری پسپۆڕ بێت",
+  "Another job with this title and classification already has this specialist description": "کارێکی تر بەم ناونیشان و پۆلێنکردنە هەمان وەسفی پسپۆڕی هەیە",
 };

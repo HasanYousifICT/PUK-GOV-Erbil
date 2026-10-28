@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
+import { resolveSpecialist } from "@/lib/job-specialist";
 import { ensureTitle } from "@/lib/job-titles";
 import { EMPLOYMENT_TYPES, JOB_STATUSES } from "@/lib/constants";
 
@@ -38,6 +39,7 @@ export async function PUT(req: Request, { params }: Params) {
     if (!existing) throw new ApiError(404, "Job not found");
 
     const data: Record<string, string | null> = {};
+    const extra: { specialist?: boolean; specialistNote?: string } = {};
     // a job whose title or classification is being edited must end up with a classification
     if (("title" in body || "categoryId" in body) && !("categoryId" in body) && !existing.categoryId) {
       throw new ApiError(400, "Please choose a job classification");
@@ -70,9 +72,21 @@ export async function PUT(req: Request, { params }: Params) {
     }
 
     if (data.title) await ensureTitle(data.title);
+    // title, classification or specialist changed: check the same-title rule against the final values
+    if ("title" in body || "categoryId" in body || "specialist" in body || "specialistNote" in body) {
+      const finalCategory = (data.categoryId ?? existing.categoryId) as string;
+      const sp = await resolveSpecialist({
+        title: (data.title ?? existing.title) as string,
+        categoryId: finalCategory,
+        specialist: "specialist" in body ? body.specialist : existing.specialist,
+        note: "specialistNote" in body ? body.specialistNote : existing.specialistNote,
+        excludeId: id,
+      });
+      Object.assign(extra, sp);
+    }
     const job = await db.job.update({
       where: { id },
-      data,
+      data: { ...data, ...extra },
       include: { _count: { select: { applications: true } } },
     });
     return json(job);

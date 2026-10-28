@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
+import { resolveSpecialist } from "@/lib/job-specialist";
 import { ensureTitle } from "@/lib/job-titles";
 import { EMPLOYMENT_TYPES, JOB_STATUSES } from "@/lib/constants";
 
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
     if (sp.get("light") === "1") {
       const limit = Math.min(100, Math.max(1, parseInt(sp.get("limit") ?? "30", 10) || 30));
       return json(
-        await db.job.findMany({ where, orderBy, take: limit, select: { id: true, title: true, location: true, status: true, categoryId: true } })
+        await db.job.findMany({ where, orderBy, take: limit, select: { id: true, title: true, location: true, status: true, categoryId: true, specialist: true, specialistNote: true } })
       );
     }
     if (sp.get("page")) {
@@ -74,8 +75,10 @@ export async function POST(req: Request) {
       throw new ApiError(400, "Category not found");
     }
     await ensureTitle(title);
+    const sp = await resolveSpecialist({ title, categoryId, specialist: body.specialist, note: body.specialistNote });
     const job = await db.job.create({
       data: {
+        ...sp,
         categoryId,
         title,
         description: str(body.description),

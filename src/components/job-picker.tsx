@@ -60,6 +60,7 @@ export function JobPicker({
         <span className="min-w-0 truncate">
           <Check className="me-1.5 inline h-4 w-4 text-primary" />
           {selected.title}
+          {selected.specialist && selected.specialistNote ? <span className="ms-2 text-amber-700">· {selected.specialistNote}</span> : null}
           {selected.location ? <span className="ms-2 text-muted-foreground">{selected.location}</span> : null}
         </span>
         <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => { setSelected(null); setQ(""); onChange("", null); }} aria-label={t("Clear")}>
@@ -88,6 +89,7 @@ export function JobPicker({
             <li key={j.id}>
               <button type="button" className="block w-full px-3 py-2 text-start text-sm hover:bg-muted/50" onClick={() => { setSelected(j); setOpenList(false); onChange(j.id, j); }}>
                 {j.title}
+                {j.specialist && j.specialistNote ? <span className="ms-2 text-xs font-medium text-amber-700">· {j.specialistNote}</span> : null}
                 {j.location ? <span className="ms-2 text-xs text-muted-foreground">{j.location}</span> : null}
               </button>
             </li>
