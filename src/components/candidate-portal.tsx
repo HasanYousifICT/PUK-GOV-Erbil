@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApplyView } from "@/components/apply-view";
 import { CvDocument } from "@/components/cv-document";
+import { MyApplications, OpenJobs } from "@/components/candidate-jobs-panel";
 import { apiClient, Candidate, PortalData } from "@/lib/client";
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
 import { cvFileName, downloadPdfOrPrint } from "@/lib/pdf-export";
@@ -87,6 +88,8 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
   const [loading, setLoading] = useState(true);
   const [justSent, setJustSent] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [tab, setTab] = useState<"cv" | "jobs" | "mine">("cv");
+  const [appsKey, setAppsKey] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -164,15 +167,30 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <LanguageSwitcher />
-            <Button size="sm" onClick={downloadCv} disabled={pdfBusy}>
+            {tab === "cv" && <Button size="sm" onClick={downloadCv} disabled={pdfBusy}>
               {pdfBusy ? <Loader2 className="me-1.5 h-4 w-4 animate-spin" /> : <Download className="me-1.5 h-4 w-4" />} {t("Download CV (PDF)")}
-            </Button>
+            </Button>}
             <Button variant="outline" size="sm" onClick={signOut}>
               <LogOut className="me-1.5 h-4 w-4" /> {t("Sign out")}
             </Button>
           </div>
         </div>
-        {justSent && (
+        <div className="mb-4 flex gap-1 rounded-xl border bg-card p-1 print:hidden" role="tablist">
+          {([["cv", "My CV"], ["jobs", "Open jobs"], ["mine", "My applications"]] as const).map(([k, label]) => (
+            <button
+              key={k}
+              role="tab"
+              aria-selected={tab === k}
+              onClick={() => setTab(k)}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+            >
+              {t(label)}
+            </button>
+          ))}
+        </div>
+        {tab === "jobs" && <OpenJobs onApplied={() => setAppsKey((k) => k + 1)} />}
+        {tab === "mine" && <MyApplications refreshKey={appsKey} />}
+        {tab === "cv" && justSent && (
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 print:hidden">
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
             <div>
@@ -181,7 +199,7 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
             </div>
           </div>
         )}
-        <div id="cv-print-root">
+        {tab === "cv" && <div id="cv-print-root">
         <CvDocument
           candidate={candidate}
           fields={data.fields}
@@ -190,7 +208,7 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
           logoUrl={org.logoUrl}
           orgName={org.name}
         />
-        </div>
+        </div>}
       </div>
     </div>
   );

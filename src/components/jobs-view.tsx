@@ -1,5 +1,8 @@
 "use client";
 import { Pager } from "@/components/pager";
+import { CustomFilterRows } from "@/components/custom-filter-rows";
+import { CustomFilter } from "@/lib/candidate-filters";
+import { parseRequirements } from "@/lib/job-requirements";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
@@ -92,6 +95,9 @@ export function JobFormDialog({
     categoryId: string | null;
     specialist: boolean;
     specialistNote: string;
+    announced: boolean;
+    requirements: CustomFilter[];
+    requirementsNote: string;
   }>({
     title: "",
     description: "",
@@ -104,6 +110,9 @@ export function JobFormDialog({
     categoryId: null,
     specialist: false,
     specialistNote: "",
+    announced: false,
+    requirements: [],
+    requirementsNote: "",
   });
   const { index: catIndex } = useCategories();
   // another job already has this title and classification: this one must be a described specialist job
@@ -147,6 +156,9 @@ export function JobFormDialog({
         categoryId: job?.categoryId ?? null,
         specialist: job?.specialist ?? false,
         specialistNote: job?.specialistNote ?? "",
+        announced: job?.announced ?? false,
+        requirements: parseRequirements(job?.requirements ?? "[]"),
+        requirementsNote: job?.requirementsNote ?? "",
       });
     }
   }, [open, job]);
@@ -184,7 +196,7 @@ export function JobFormDialog({
     }
   }
 
-  const set = (key: Exclude<keyof typeof form, "categoryId" | "specialist">) => (value: string) => setForm((f) => ({ ...f, [key]: value }));
+  const set = (key: Exclude<keyof typeof form, "categoryId" | "specialist" | "announced" | "requirements">) => (value: string) => setForm((f) => ({ ...f, [key]: value }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -327,6 +339,42 @@ export function JobFormDialog({
               />
             </div>
           )}
+
+          <div className="space-y-3 rounded-lg border bg-muted/10 p-3 sm:col-span-2">
+            <CustomFilterRows
+              title={t("Requirements")}
+              addLabel={t("Add requirement")}
+              hint={t("Add the conditions a candidate's profile must meet to apply for this job. Candidates who do not meet them cannot apply.")}
+              value={form.requirements}
+              onChange={(v) => setForm((f) => ({ ...f, requirements: v }))}
+            />
+            <div className="space-y-2">
+              <Label htmlFor="job-req-note">{t("Other requirements (shown to candidates)")}</Label>
+              <Textarea
+                id="job-req-note"
+                rows={3}
+                maxLength={2000}
+                value={form.requirementsNote}
+                onChange={(e) => set("requirementsNote")(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2 sm:col-span-2">
+            <Label>{t("Announce in the candidate portal")}</Label>
+            <Select value={form.announced ? "yes" : "no"} onValueChange={(v) => setForm((f) => ({ ...f, announced: v === "yes" }))}>
+              <SelectTrigger aria-label={t("Announce in the candidate portal")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="no">{t("No")}</SelectItem>
+                <SelectItem value="yes">{t("Yes")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {t("When Yes, candidates who have submitted their profile can see this job (while it is open) and apply to it.")}
+            </p>
+          </div>
 
           {error && (
             <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 sm:col-span-2">

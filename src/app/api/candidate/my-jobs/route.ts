@@ -1,0 +1,32 @@
+import { db } from "@/lib/db";
+import { handle, json, requireCandidate } from "@/lib/api-candidate";
+import { quotaOf, requireProfile } from "@/lib/candidate-jobs";
+
+/** GET /api/candidate/my-jobs — every job this candidate applied to, with its pipeline stage, plus the quota. */
+export async function GET(req: Request) {
+  return handle(async () => {
+    const account = await requireCandidate(req);
+    const candidate = await requireProfile(account.candidateId);
+    const [apps, quota] = await Promise.all([
+      db.application.findMany({
+        where: { candidateId: candidate.id },
+        orderBy: { appliedAt: "desc" },
+        include: { job: { select: { id: true, title: true, location: true, employmentType: true } } },
+      }),
+      quotaOf(candidate.id),
+    ]);
+    return json({
+      quota,
+      items: apps.map((a) => ({
+        id: a.id,
+        jobId: a.jobId,
+        title: a.job.title,
+        location: a.job.location,
+        employmentType: a.job.employmentType,
+        stage: a.stage,
+        status: a.status,
+        appliedAt: a.appliedAt,
+      })),
+    });
+  });
+}

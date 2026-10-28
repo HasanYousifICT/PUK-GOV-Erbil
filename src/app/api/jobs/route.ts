@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
+import { normalizeRequirements } from "@/lib/job-requirements-server";
 import { resolveSpecialist } from "@/lib/job-specialist";
 import { ensureTitle } from "@/lib/job-titles";
 import { EMPLOYMENT_TYPES, JOB_STATUSES } from "@/lib/constants";
@@ -76,9 +77,13 @@ export async function POST(req: Request) {
     }
     await ensureTitle(title);
     const sp = await resolveSpecialist({ title, categoryId, specialist: body.specialist, note: body.specialistNote });
+    const requirements = await normalizeRequirements(body.requirements);
     const job = await db.job.create({
       data: {
         ...sp,
+        announced: body.announced === true,
+        requirements,
+        requirementsNote: str(body.requirementsNote).trim().slice(0, 2000),
         categoryId,
         title,
         description: str(body.description),

@@ -15,6 +15,7 @@ import { CandidateFieldsSettings } from "@/components/candidate-fields";
 import { BackupSettings } from "@/components/backup-settings";
 import { BannerSettings } from "@/components/banner-settings";
 import { OrganizationSettings, UsersSettings } from "@/components/admin-settings";
+import { ApplicationLimitCard } from "@/components/application-limit-card";
 import { CandidateAccessSettings, CvDesignSettings } from "@/components/candidate-access-settings";
 
 import { useI18n } from "@/lib/i18n";
@@ -193,6 +194,7 @@ export function SettingsView({
 
       )}
 
+      {tab === "access" && settingsTabAllowed(current, user) && user.role === "admin" && <ApplicationLimitCard />}
       {tab === "access" && settingsTabAllowed(current, user) && <CandidateAccessSettings canEdit={can(user.permissions, "access", "edit")} openId={accessId} />}
       {tab === "classification" && settingsTabAllowed(current, user) && <ClassificationView isAdmin={user.role === "admin"} />}
       {tab === "jobtitles" && settingsTabAllowed(current, user) && <JobTitlesSettings />}

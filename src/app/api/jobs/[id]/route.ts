@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
+import { normalizeRequirements } from "@/lib/job-requirements-server";
 import { resolveSpecialist } from "@/lib/job-specialist";
 import { ensureTitle } from "@/lib/job-titles";
 import { EMPLOYMENT_TYPES, JOB_STATUSES } from "@/lib/constants";
@@ -39,7 +40,10 @@ export async function PUT(req: Request, { params }: Params) {
     if (!existing) throw new ApiError(404, "Job not found");
 
     const data: Record<string, string | null> = {};
-    const extra: { specialist?: boolean; specialistNote?: string } = {};
+    const extra: { specialist?: boolean; specialistNote?: string; announced?: boolean; requirements?: string; requirementsNote?: string } = {};
+    if ("announced" in body) extra.announced = body.announced === true;
+    if ("requirements" in body) extra.requirements = await normalizeRequirements(body.requirements);
+    if ("requirementsNote" in body) extra.requirementsNote = str(body.requirementsNote).trim().slice(0, 2000);
     // a job whose title or classification is being edited must end up with a classification
     if (("title" in body || "categoryId" in body) && !("categoryId" in body) && !existing.categoryId) {
       throw new ApiError(400, "Please choose a job classification");

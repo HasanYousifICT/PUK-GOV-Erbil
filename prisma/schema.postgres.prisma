@@ -39,6 +39,9 @@ model Job {
   categoryId     String?  // optional job classification (any level of the category tree)
   specialist     Boolean  @default(false) // a specialist position (e.g. a particular specialty within the same title)
   specialistNote String   @default("")    // describes the specialist position when specialist is true
+  announced      Boolean  @default(false) // shown in the candidate portal (to candidates who submitted their profile)
+  requirements   String   @default("[]")  // JSON [{fieldId, op, value, value2}] — checked against the candidate profile before applying
+  requirementsNote String @default("")    // other requirements, shown to candidates as text
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   applications   Application[]
@@ -196,6 +199,7 @@ model Organization {
   bannerName String   @default("") // footer banner: name
   version    String   @default("") // footer banner: version
   copyright  String   @default("") // footer banner: copyright text
+  maxApplications Int     @default(0) // most jobs one candidate may apply to (0 = no limit)
   categoriesCleared Boolean @default(false) // the admin deleted the whole classification: don't re-add the starter data
   updatedAt  DateTime @updatedAt
 }

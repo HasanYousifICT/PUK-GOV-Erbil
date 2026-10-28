@@ -19,6 +19,29 @@ export type SessionUser = {
 
 export type ManagedUser = SessionUser & { active: boolean; lastLoginAt: string | null; createdAt: string };
 
+export type JobInput = Partial<Omit<Job, "requirements">> & { requirements?: unknown };
+
+export type PortalRequirement = { rule: { fieldId: string; op: string; value?: string; value2?: string }; met: boolean; label: string; labelCkb: string; fieldType: string };
+export type Quota = { max: number; used: number; remaining: number | null };
+export type PortalOpenJob = {
+  id: string;
+  title: string;
+  description: string;
+  skills: string;
+  experience: string;
+  location: string;
+  salary: string;
+  employmentType: string;
+  specialist: boolean;
+  specialistNote: string;
+  requirementsNote: string;
+  requirements: PortalRequirement[];
+  applied: boolean;
+  canApply: boolean;
+  createdAt: string;
+};
+export type PortalMyJob = { id: string; jobId: string; title: string; location: string; employmentType: string; stage: string; status: string; appliedAt: string };
+
 export type Org = {
   name: string;
   tagline: string;
@@ -118,6 +141,9 @@ export type Job = {
   categoryId?: string | null;
   specialist?: boolean;
   specialistNote?: string;
+  announced?: boolean;
+  requirements?: string;
+  requirementsNote?: string;
   createdAt: string;
   updatedAt: string;
   _count?: { applications: number };
@@ -328,8 +354,8 @@ export const apiClient = {
   searchJobs: (p: { q?: string; status?: string; categoryId?: string; limit?: number }) =>
     api<JobLite[]>(`/api/jobs${qs({ ...p, light: 1 })}`),
   getJob: (id: string) => api<JobDetail>(`/api/jobs/${id}`),
-  createJob: (data: Partial<Job>) => api<Job>("/api/jobs", { method: "POST", body: JSON.stringify(data) }),
-  updateJob: (id: string, data: Partial<Job>) =>
+  createJob: (data: JobInput) => api<Job>("/api/jobs", { method: "POST", body: JSON.stringify(data) }),
+  updateJob: (id: string, data: JobInput) =>
     api<Job>(`/api/jobs/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteJob: (id: string) => api<{ ok: boolean }>(`/api/jobs/${id}`, { method: "DELETE" }),
 
@@ -484,6 +510,13 @@ export const apiClient = {
     form.append("kind", kind);
     return api<{ key: string; name: string; parsed?: ParsedResume }>("/api/candidate/upload", { method: "POST", body: form });
   },
+  candidateJobs: (p: { q?: string; page?: number; pageSize?: number }) =>
+    api<Paged<PortalOpenJob> & { quota: Quota }>(`/api/candidate/jobs${qs(p)}`),
+  candidateMyJobs: () => api<{ items: PortalMyJob[]; quota: Quota }>("/api/candidate/my-jobs"),
+  candidateApplyJob: (id: string) => api<{ ok: boolean }>(`/api/candidate/jobs/${id}/apply`, { method: "POST" }),
+  getApplicationLimit: () => api<{ maxApplications: number }>("/api/application-limit"),
+  setApplicationLimit: (maxApplications: number) =>
+    api<{ maxApplications: number }>("/api/application-limit", { method: "PUT", body: JSON.stringify({ maxApplications }) }),
   candidateApply: (data: Record<string, unknown>) =>
     api<{ ok: boolean; candidate: Candidate }>("/api/candidate/apply", { method: "POST", body: JSON.stringify(data) }),
 
