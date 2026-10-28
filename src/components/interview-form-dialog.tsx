@@ -1,4 +1,5 @@
 "use client";
+import { JobTitleText } from "@/components/job-title-text";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
@@ -147,14 +148,14 @@ export function InterviewFormDialog({
               <SelectContent className="max-h-64 thin-scrollbar">
                 {[...(chosen && !applications.some((a) => a.id === chosen.id) ? [chosen] : []), ...applications].map((a) => (
                   <SelectItem key={a.id} value={a.id}>
-                    {a.candidate?.name} — {a.job?.title} ({a.stage})
+                    {a.candidate?.name} — <JobTitleText title={a.job?.title} /> ({a.stage})
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {interview && interview.application && (
               <p className="text-xs text-muted-foreground">
-                {interview.application.candidate.name} — {interview.application.job.title}
+                {interview.application.candidate.name} — <JobTitleText title={interview.application.job.title} />
               </p>
             )}
           </div>

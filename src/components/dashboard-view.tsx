@@ -1,4 +1,5 @@
 "use client";
+import { JobTitleText } from "@/components/job-title-text";
 
 import { ReactNode, useCallback, useState } from "react";
 import {
@@ -344,7 +345,7 @@ export function DashboardView({ user, onNavigate }: { user: SessionUser; onNavig
                     <li key={j.id}>
                       <button className="w-full text-start" onClick={() => onNavigate({ view: "job-detail", jobId: j.id })}>
                         <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-                          <span className="truncate font-medium">{j.title}</span>
+                          <span className="truncate font-medium"><JobTitleText title={j.title} /></span>
                           <span className="shrink-0 tabular-nums text-muted-foreground">{j.applications}</span>
                         </div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-muted">

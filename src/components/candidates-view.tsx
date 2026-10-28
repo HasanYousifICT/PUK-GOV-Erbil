@@ -1,4 +1,5 @@
 "use client";
+import { JobTitleText } from "@/components/job-title-text";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -746,7 +747,7 @@ export function CandidateDetailView({
                         className="text-start text-sm font-medium underline-offset-2 hover:underline"
                         onClick={() => onNavigate({ view: "job-detail", jobId: app.job.id })}
                       >
-                        {app.job.title}
+                        <JobTitleText title={app.job.title} />
                       </button>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">
@@ -792,7 +793,7 @@ export function CandidateDetailView({
                   <div key={iv.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
                     <div className="min-w-0">
                       <p className="text-sm font-medium">
-                        {iv.interviewer} · {iv.application?.job?.title}
+                        {iv.interviewer} · <JobTitleText title={iv.application?.job?.title} />
                       </p>
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
                         <CalendarDays className="h-3 w-3" />

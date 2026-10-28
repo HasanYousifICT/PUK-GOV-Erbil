@@ -1,4 +1,5 @@
 "use client";
+import { JobTitleText } from "@/components/job-title-text";
 
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ArrowLeft, CheckCircle2, FileText, Loader2, Save, Upload, X } from "lucide-react";
@@ -254,7 +255,7 @@ export function ApplyView({
                     <SelectItem value={NO_JOB}>{t("General application (no specific job)")}</SelectItem>
                     {jobs.map((j) => (
                       <SelectItem key={j.id} value={j.id}>
-                        {j.title}
+                        <JobTitleText title={j.title} ckb={j.titleCkb} />
                         {j.location ? ` — ${j.location}` : ""}
                       </SelectItem>
                     ))}

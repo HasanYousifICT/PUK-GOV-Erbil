@@ -1,4 +1,5 @@
 "use client";
+import { JobTitleText } from "@/components/job-title-text";
 
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
@@ -124,7 +125,7 @@ export function OpenJobs({ onApplied }: { onApplied: () => void }) {
             <div key={j.id} className="space-y-3 rounded-xl border bg-card p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <h3 className="font-semibold">{j.title}</h3>
+                  <h3 className="font-semibold"><JobTitleText title={j.title} ckb={j.titleCkb} /></h3>
                   <p className="text-xs text-muted-foreground">
                     {[j.location, t(j.employmentType), j.salary].filter(Boolean).join(" · ")}
                   </p>
@@ -219,7 +220,7 @@ export function MyApplications({ refreshKey }: { refreshKey: number }) {
         items.map((a) => (
           <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-4 shadow-sm">
             <div>
-              <p className="font-semibold">{a.title}</p>
+              <p className="font-semibold"><JobTitleText title={a.title} ckb={a.titleCkb} /></p>
               <p className="text-xs text-muted-foreground">
                 {[a.location, new Date(a.appliedAt).toLocaleDateString()].filter(Boolean).join(" · ")}
               </p>

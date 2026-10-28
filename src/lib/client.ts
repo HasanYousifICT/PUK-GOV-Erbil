@@ -26,6 +26,7 @@ export type Quota = { max: number; used: number; remaining: number | null };
 export type PortalOpenJob = {
   id: string;
   title: string;
+  titleCkb?: string;
   description: string;
   skills: string;
   experience: string;
@@ -40,7 +41,7 @@ export type PortalOpenJob = {
   canApply: boolean;
   createdAt: string;
 };
-export type PortalMyJob = { id: string; jobId: string; title: string; location: string; employmentType: string; stage: string; status: string; appliedAt: string };
+export type PortalMyJob = { id: string; jobId: string; title: string; titleCkb?: string; location: string; employmentType: string; stage: string; status: string; appliedAt: string };
 
 export type Org = {
   name: string;
@@ -98,7 +99,7 @@ export type CvDesign = {
   footerNote: string;
 };
 
-export type PortalJob = { id: string; title: string; location: string; employmentType: string };
+export type PortalJob = { id: string; title: string; titleCkb?: string; location: string; employmentType: string };
 
 export type PortalData = {
   account: { username: string | null; code: string; fullName: string; email: string; phone: string; draftAt: string | null };

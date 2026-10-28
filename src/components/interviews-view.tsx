@@ -1,4 +1,5 @@
 "use client";
+import { JobTitleText } from "@/components/job-title-text";
 
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -168,7 +169,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                       </div>
                     </td>
                     <td className="max-w-40 px-4 py-3">
-                      <p className="truncate text-muted-foreground">{iv.application?.job?.title ?? "—"}</p>
+                      <p className="truncate text-muted-foreground">{iv.application?.job ? <JobTitleText title={iv.application.job.title} /> : "—"}</p>
                     </td>
                     <td className="px-4 py-3">{iv.interviewer}</td>
                     <td className="px-4 py-3">
@@ -238,7 +239,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                     <Avatar name={iv.application?.candidate?.name ?? "?"} />
                     <div className="min-w-0">
                       <p className="truncate font-medium">{iv.application?.candidate?.name ?? "—"}</p>
-                      <p className="truncate text-xs text-muted-foreground">{iv.application?.job?.title}</p>
+                      <p className="truncate text-xs text-muted-foreground"><JobTitleText title={iv.application?.job?.title} /></p>
                     </div>
                   </div>
                   <InterviewStatusBadge status={iv.status} />

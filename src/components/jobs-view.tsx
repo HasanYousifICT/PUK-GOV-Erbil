@@ -1,4 +1,5 @@
 "use client";
+import { JobTitleText } from "@/components/job-title-text";
 import { Pager } from "@/components/pager";
 import { CustomFilterRows } from "@/components/custom-filter-rows";
 import { CustomFilter } from "@/lib/candidate-filters";
@@ -578,7 +579,7 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
                     onClick={() => onNavigate({ view: "job-detail", jobId: job.id })}
                   >
                     <td className="px-4 py-3">
-                      <p className="font-medium">{job.title}</p>
+                      <p className="font-medium"><JobTitleText title={job.title} /></p>
                       {job.categoryId && (
                         <p className="max-w-xs truncate text-xs text-primary">
                           {categoryPathText(job.categoryId, catIndex, locale)}
@@ -657,7 +658,7 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium">{job.title}</p>
+                    <p className="font-medium"><JobTitleText title={job.title} /></p>
                     {job.categoryId && (
                       <p className="truncate text-xs text-primary">{categoryPathText(job.categoryId, catIndex, locale)}</p>
                     )}
@@ -813,7 +814,7 @@ export function JobDetailView({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{job.title}</h1>
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl"><JobTitleText title={job.title} /></h1>
             <JobStatusBadge status={job.status} />
           </div>
           {job.categoryId && (

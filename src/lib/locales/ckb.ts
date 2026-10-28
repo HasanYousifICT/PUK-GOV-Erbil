@@ -1019,4 +1019,9 @@ export const ckb: Record<string, string> = {
   "Invalid requirements": "مەرجەکان دروست نین",
   "Too many requirements (max 20)": "مەرجەکان زۆرن (زۆرترین ٢٠)",
   "Invalid requirement": "مەرجەکە دروست نییە",
+  "My CV": "CVەکەم",
+  "Open jobs": "کارە کراوەکان",
+  "My applications": "داواکارییەکانم",
+  "Your application has been sent": "داواکارییەکەت نێردرا",
+  "Settings saved": "ڕێکخستنەکان پاشەکەوت کران",
 };

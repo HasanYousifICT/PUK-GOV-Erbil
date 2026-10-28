@@ -1,3 +1,4 @@
+import { withTitleCkb } from "@/lib/job-titles";
 import { db } from "@/lib/db";
 import { handle, json, requireCandidate } from "@/lib/api-candidate";
 import { loadFields, loadSections } from "@/lib/candidate-custom";
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
       })(),
       submitted: !!candidate,
       candidate,
-      jobs,
+      jobs: await withTitleCkb(jobs),
       fields: fields.filter((f) => f.publicForm),
       sections,
       design,

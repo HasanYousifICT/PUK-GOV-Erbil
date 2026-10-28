@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { withTitleCkb } from "@/lib/job-titles";
 import { db } from "@/lib/db";
 import { handle, json, requireCandidate } from "@/lib/api-candidate";
 import { checkJob, quotaOf, requireProfile } from "@/lib/candidate-jobs";
@@ -26,14 +27,16 @@ export async function GET(req: Request) {
       db.application.findMany({ where: { candidateId: candidate.id }, select: { jobId: true } }),
     ]);
     const applied = new Set(mine.map((a) => a.jobId));
+    const ckbs = await withTitleCkb(rows);
     const items = await Promise.all(
-      rows.map(async (j) => {
+      rows.map(async (j, i) => {
         const requirements = await checkJob(j, candidate as never);
         const isApplied = applied.has(j.id);
         const unmet = requirements.filter((r) => !r.met).length;
         return {
           id: j.id,
           title: j.title,
+          titleCkb: ckbs[i].titleCkb,
           description: j.description,
           skills: j.skills,
           experience: j.experience,

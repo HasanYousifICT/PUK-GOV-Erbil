@@ -1,3 +1,4 @@
+import { withTitleCkb } from "@/lib/job-titles";
 import { db } from "@/lib/db";
 import { handle, json } from "@/lib/api";
 import { loadFields, loadSections } from "@/lib/candidate-custom";
@@ -14,6 +15,6 @@ export async function GET() {
       loadFields(),
       loadSections(),
     ]);
-    return json({ jobs, fields: fields.filter((f) => f.publicForm), sections });
+    return json({ jobs: await withTitleCkb(jobs), fields: fields.filter((f) => f.publicForm), sections });
   });
 }

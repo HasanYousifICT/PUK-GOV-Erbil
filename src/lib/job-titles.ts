@@ -19,3 +19,11 @@ export async function ensureTitle(title: string) {
   return db.jobTitle.create({ data: { title: clean } });
 }
 
+
+/** Adds `titleCkb` (the Kurdish name from the job-title list, or "") to rows that have a `title`. */
+export async function withTitleCkb<T extends { title: string }>(rows: T[]): Promise<(T & { titleCkb: string })[]> {
+  if (!rows.length) return [];
+  const all = await db.jobTitle.findMany({ select: { title: true, titleCkb: true } });
+  const map = new Map<string, string>(all.map((r: { title: string; titleCkb: string }) => [normTitle(r.title), r.titleCkb] as [string, string]));
+  return rows.map((r) => ({ ...r, titleCkb: map.get(normTitle(r.title)) ?? "" }));
+}

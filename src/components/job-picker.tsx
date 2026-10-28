@@ -1,4 +1,5 @@
 "use client";
+import { JobTitleText } from "@/components/job-title-text";
 
 import { useEffect, useState } from "react";
 import { Check, Search, X } from "lucide-react";
@@ -88,7 +89,7 @@ export function JobPicker({
           {results.map((j) => (
             <li key={j.id}>
               <button type="button" className="block w-full px-3 py-2 text-start text-sm hover:bg-muted/50" onClick={() => { setSelected(j); setOpenList(false); onChange(j.id, j); }}>
-                {j.title}
+                <JobTitleText title={j.title} />
                 {j.specialist && j.specialistNote ? <span className="ms-2 text-xs font-medium text-amber-700">· {j.specialistNote}</span> : null}
                 {j.location ? <span className="ms-2 text-xs text-muted-foreground">{j.location}</span> : null}
               </button>

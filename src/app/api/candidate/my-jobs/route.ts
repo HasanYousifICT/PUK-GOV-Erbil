@@ -1,3 +1,4 @@
+import { withTitleCkb } from "@/lib/job-titles";
 import { db } from "@/lib/db";
 import { handle, json, requireCandidate } from "@/lib/api-candidate";
 import { quotaOf, requireProfile } from "@/lib/candidate-jobs";
@@ -15,9 +16,11 @@ export async function GET(req: Request) {
       }),
       quotaOf(candidate.id),
     ]);
+    const titles = await withTitleCkb(apps.map((a) => ({ title: a.job.title })));
     return json({
       quota,
-      items: apps.map((a) => ({
+      items: apps.map((a, i) => ({
+        titleCkb: titles[i].titleCkb,
         id: a.id,
         jobId: a.jobId,
         title: a.job.title,

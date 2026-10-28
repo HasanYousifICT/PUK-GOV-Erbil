@@ -1,4 +1,5 @@
 "use client";
+import { JobTitleText } from "@/components/job-title-text";
 import { JobPicker } from "@/components/job-picker";
 
 import { Input } from "@/components/ui/input";
@@ -115,7 +116,7 @@ function ApplicationCard({
             {app.candidate?.name ?? "Unknown"}
           </button>
           <p className="truncate text-xs text-muted-foreground" title={app.job?.title}>
-            {app.job?.title ?? "—"}
+            {app.job ? <JobTitleText title={app.job.title} /> : "—"}
           </p>
         </div>
         {!overlay && (
@@ -344,7 +345,7 @@ function ApplicationDetailDialog({
             <span className="min-w-0">
               <span className="block truncate">{app.candidate?.name}</span>
               <span className="block truncate text-xs font-normal text-muted-foreground">
-                {app.job?.title}
+                <JobTitleText title={app.job?.title} />
               </span>
             </span>
           </DialogTitle>
