@@ -76,11 +76,14 @@ export function NotificationBell({
   onOpenLink,
   onOpenAction,
   className,
+  withLabel,
 }: {
   source: BellSource;
   onOpenLink: (link: Record<string, unknown>) => void;
   onOpenAction?: () => void;
   className?: string;
+  /** a full-width row with the word "Notifications" (used in the sidebar) */
+  withLabel?: boolean;
 }) {
   const { t, dir } = useI18n();
   const jt = useJobTitle();
@@ -131,10 +134,16 @@ export function NotificationBell({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className={cn("relative", className)} aria-label={t("Notifications")}>
+        <Button variant={withLabel ? "outline" : "ghost"} size={withLabel ? "default" : "icon"} className={cn("relative", className)} aria-label={t("Notifications")}>
           <Bell className="h-5 w-5" />
+          {withLabel && <span>{t("Notifications")}</span>}
           {count > 0 && (
-            <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white">
+            <span
+              className={cn(
+                "flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white",
+                withLabel ? "ms-auto" : "absolute -end-0.5 -top-0.5"
+              )}
+            >
               {count > 99 ? "99+" : count}
             </span>
           )}

@@ -84,9 +84,8 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col">
       {/* Brand */}
-      <div className="flex items-center justify-between gap-1 pe-3">
       <button
-        className="flex min-w-0 items-center gap-3 px-5 pb-4 pt-6 text-start text-sidebar-foreground"
+        className="flex items-center gap-3 px-5 pb-4 pt-6 text-start text-sidebar-foreground"
         onClick={() => onNavigate({ view: "dashboard" })}
       >
         <img src={org.logoUrl} alt="" className="h-9 w-9 object-contain" />
@@ -95,13 +94,6 @@ function SidebarContent({
           {org.tagline && <span className="block text-[10px] leading-tight text-muted-foreground">{org.tagline}</span>}
         </span>
       </button>
-      <NotificationBell
-        className="mt-3 hidden shrink-0 text-sidebar-foreground hover:bg-white/10 hover:text-sidebar-foreground lg:inline-flex"
-        source={staffBell}
-        onOpenLink={(l) => onNavigate(l as NavState)}
-        onOpenAction={() => onNavigate({ view: "interviews" })}
-      />
-      </div>
 
       {/* Nav (scrolls when the menu is long; leaves room for the user bar) */}
       <nav className="thin-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-3 pb-20 pt-2" aria-label={t("Main navigation")}>
@@ -165,7 +157,14 @@ function SidebarContent({
           )}
         </div>
 
-        <div>
+        <div className="space-y-2">
+          <NotificationBell
+            withLabel
+            className="w-full justify-start gap-2 border-sidebar-border bg-transparent text-sidebar-foreground hover:bg-white/10 hover:text-sidebar-foreground"
+            source={staffBell}
+            onOpenLink={(l) => onNavigate(l as NavState)}
+            onOpenAction={() => onNavigate({ view: "interviews" })}
+          />
           <LanguageSwitcher className="w-full justify-start gap-2 border-sidebar-border bg-transparent text-sidebar-foreground hover:bg-white/10 hover:text-sidebar-foreground" />
         </div>
       </nav>
