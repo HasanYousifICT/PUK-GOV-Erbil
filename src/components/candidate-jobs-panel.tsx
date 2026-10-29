@@ -1,4 +1,5 @@
 "use client";
+import { fmtDate, fmtDateTime, time12 } from "@/lib/datetime";
 import { JobTitleText } from "@/components/job-title-text";
 
 import { useCallback, useEffect, useState } from "react";
@@ -222,7 +223,7 @@ export function MyApplications({ refreshKey }: { refreshKey: number }) {
             <div>
               <p className="font-semibold"><JobTitleText title={a.title} ckb={a.titleCkb} /></p>
               <p className="text-xs text-muted-foreground">
-                {[a.location, new Date(a.appliedAt).toLocaleDateString()].filter(Boolean).join(" · ")}
+                {[a.location, fmtDate(a.appliedAt)].filter(Boolean).join(" · ")}
               </p>
             </div>
             <div className="text-end">
@@ -236,7 +237,7 @@ export function MyApplications({ refreshKey }: { refreshKey: number }) {
                   <div key={iv.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/30 p-3 text-sm">
                     <div className="space-y-0.5">
                       <p className="font-medium" dir="ltr">
-                        {new Date(`${iv.date}T00:00:00`).toLocaleDateString()} · {iv.time}
+                        {fmtDate(iv.date)} · {time12(iv.time)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {t("Interviewer")}: {iv.interviewer}

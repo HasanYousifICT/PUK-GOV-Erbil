@@ -1,3 +1,4 @@
+import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
@@ -132,6 +133,7 @@ export async function POST(req: Request) {
         interviews: true,
       },
     });
+    await notifyCandidate(candidateId, "app_added", { job: job.title }, { tab: "mine" });
     return json(application, 201);
   });
 }

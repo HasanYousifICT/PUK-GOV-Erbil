@@ -3,7 +3,7 @@
 // OpenRecruitOS — shared UI building blocks
 
 import { ReactNode, useEffect } from "react";
-import { format, isValid, parseISO } from "date-fns";
+import { fmtDate, fmtDateTime } from "@/lib/datetime";
 import {
   AlertTriangle,
   CalendarDays,
@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { getLocale } from "@/lib/i18n-core";
 import { INTERVIEW_STATUS_STYLES, STAGE_STYLES } from "@/lib/constants";
 
 import { useI18n } from "@/lib/i18n";
@@ -40,32 +39,12 @@ export function useLoadEffect(load: () => void) {
 
 /* ------------------------------- formatting ------------------------------- */
 
-function formatLocalized(value: string | Date | null | undefined, withTime: boolean): string {
-  if (!value) return "—";
-  const d = typeof value === "string" ? parseISO(value) : value;
-  if (!isValid(d)) return "—";
-  if (getLocale() === "ckb") {
-    try {
-      // Sorani month names, Latin digits (matches the rest of the interface).
-      return new Intl.DateTimeFormat("ckb-u-nu-latn", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        ...(withTime ? { hour: "2-digit", minute: "2-digit", hour12: false } : {}),
-      }).format(d);
-    } catch {
-      /* fall through to English format */
-    }
-  }
-  return format(d, withTime ? "dd MMM yyyy, HH:mm" : "dd MMM yyyy");
-}
-
 export function formatDate(value?: string | Date | null): string {
-  return formatLocalized(value, false);
+  return fmtDate(value);
 }
 
 export function formatDateTime(value?: string | Date | null): string {
-  return formatLocalized(value, true);
+  return fmtDateTime(value);
 }
 
 export function initials(name: string): string {

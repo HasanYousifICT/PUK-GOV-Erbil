@@ -1,6 +1,7 @@
 "use client";
 import { JobTitleText } from "@/components/job-title-text";
 import { Pager } from "@/components/pager";
+import { JobRequirementsView } from "@/components/job-requirements-view";
 import { SearchableSelect } from "@/components/searchable-select";
 import { useJobTitles } from "@/components/job-titles";
 import { CustomFilterRows } from "@/components/custom-filter-rows";
@@ -1000,6 +1001,8 @@ export function JobDetailView({
                 <span className="text-sm text-muted-foreground">{t("No skills listed")}</span>
               )}
             </div>
+            <Separator className="my-4" />
+            <JobRequirementsView requirements={job.requirements} note={job.requirementsNote} announced={job.announced} />
             {job.description && (
               <>
                 <Separator className="my-4" />

@@ -1,4 +1,5 @@
 "use client";
+import { fmtDate, fmtDateTime, time12 } from "@/lib/datetime";
 import { JobTitleText } from "@/components/job-title-text";
 
 import { useCallback, useEffect, useState } from "react";
@@ -245,7 +246,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                     <td className="px-4 py-3">
                       <p className="whitespace-nowrap">{formatDate(iv.date)}</p>
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" /> {iv.time}
+                        <Clock className="h-3 w-3" /> {time12(iv.time)}
                       </p>
                     </td>
                     <td className="px-4 py-3">
@@ -316,7 +317,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                 </div>
                 <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" /> {formatDate(iv.date)} · {iv.time} · <InterviewersText iv={iv} />
+                    <Clock className="h-3.5 w-3.5" /> {formatDate(iv.date)} · {time12(iv.time)} · <InterviewersText iv={iv} />
                   </span>
                   <span className="flex gap-1">
                     <Button

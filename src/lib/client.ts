@@ -43,6 +43,21 @@ export type PortalOpenJob = {
 };
 export type PortalMyJob = { id: string; jobId: string; title: string; titleCkb?: string; location: string; employmentType: string; stage: string; status: string; appliedAt: string; interviews?: { id: string; date: string; time: string; interviewer: string; status: string }[] };
 
+export type NotificationItem = {
+  id: string;
+  type: string;
+  params: Record<string, string | number | boolean | null>;
+  link: Record<string, unknown> | null;
+  read: boolean;
+  createdAt: string;
+};
+export type NotificationList = {
+  items: NotificationItem[];
+  unread: number;
+  /** staff only: interviews waiting for this person's evaluation */
+  actions?: { id: string; candidate: string; job: string; date: string; time: string }[];
+};
+
 export type Org = {
   name: string;
   tagline: string;
@@ -523,6 +538,11 @@ export const apiClient = {
   getApplicationLimit: () => api<{ maxApplications: number }>("/api/application-limit"),
   setApplicationLimit: (maxApplications: number) =>
     api<{ maxApplications: number }>("/api/application-limit", { method: "PUT", body: JSON.stringify({ maxApplications }) }),
+  notifications: () => api<NotificationList>("/api/notifications"),
+  markNotificationsRead: (p: { ids?: string[]; all?: boolean }) => api<{ ok: boolean }>("/api/notifications/read", { method: "POST", body: JSON.stringify(p) }),
+  candidateNotifications: () => api<NotificationList>("/api/candidate/notifications"),
+  candidateMarkNotificationsRead: (p: { ids?: string[]; all?: boolean }) =>
+    api<{ ok: boolean }>("/api/candidate/notifications/read", { method: "POST", body: JSON.stringify(p) }),
   candidateApply: (data: Record<string, unknown>) =>
     api<{ ok: boolean; candidate: Candidate }>("/api/candidate/apply", { method: "POST", body: JSON.stringify(data) }),
 

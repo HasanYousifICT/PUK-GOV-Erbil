@@ -1,3 +1,5 @@
+import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
+import { applicationFacts } from "@/lib/notify-server";
 import { jobWhereFromParams } from "@/lib/job-filter-server";
 import { resolveInterviewers } from "@/lib/interview-server";
 import { db } from "@/lib/db";
@@ -79,6 +81,12 @@ export async function POST(req: Request) {
         },
       },
     });
+    const facts = await applicationFacts(applicationId);
+    if (facts) {
+      const when = { date, time };
+      await notifyCandidate(facts.candidateId, "iv_scheduled", { job: facts.job, ...when }, { tab: "mine" });
+      await notifyUsers(people.ids, "iv_assigned", { candidate: facts.candidate, job: facts.job, ...when }, { view: "interviews" });
+    }
     return json(interview, 201);
   });
 }

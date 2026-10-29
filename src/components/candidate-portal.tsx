@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApplyView } from "@/components/apply-view";
 import { CvDocument } from "@/components/cv-document";
+import { candidateBell, NotificationBell } from "@/components/notification-bell";
 import { MyApplications, OpenJobs } from "@/components/candidate-jobs-panel";
 import { apiClient, Candidate, PortalData } from "@/lib/client";
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
@@ -166,6 +167,13 @@ export function CandidatePortal({ onExit }: { onExit: () => void }) {
             <span dir="ltr">{data.account.username ?? data.account.phone}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <NotificationBell
+              source={candidateBell}
+              onOpenLink={(l) => {
+                if (l.tab === "mine" || l.tab === "jobs" || l.tab === "cv") setTab(l.tab);
+                setAppsKey((k) => k + 1);
+              }}
+            />
             <LanguageSwitcher />
             {tab === "cv" && <Button size="sm" onClick={downloadCv} disabled={pdfBusy}>
               {pdfBusy ? <Loader2 className="me-1.5 h-4 w-4 animate-spin" /> : <Download className="me-1.5 h-4 w-4" />} {t("Download CV (PDF)")}

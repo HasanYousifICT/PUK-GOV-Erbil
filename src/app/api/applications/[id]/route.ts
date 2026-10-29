@@ -1,3 +1,4 @@
+import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { isValidStage, statusForStage } from "@/lib/constants";
@@ -56,6 +57,7 @@ export async function PUT(req: Request, { params }: Params) {
         interviews: { orderBy: { date: "desc" } },
       },
     });
+    await notifyCandidate(existing.candidateId, "app_stage", { job: application.job.title, stage }, { tab: "mine" });
     return json(application);
   });
 }

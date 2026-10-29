@@ -1,4 +1,5 @@
 "use client";
+import { fmtDate } from "@/lib/datetime";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -589,7 +590,7 @@ export function CustomFieldValue({ field, value, fit = false }: { field: Candida
               <tr key={i} className="border-t">
                 {field.options.map((c, j) => (
                   <td key={c} className="break-words border-s px-2 py-1.5 text-center align-middle first:border-s-0" dir="auto">
-                    {r[j] === "yes" ? t("Yes") : r[j] === "no" ? t("No") : r[j] || "—"}
+                    {r[j] === "yes" ? t("Yes") : r[j] === "no" ? t("No") : r[j] && field.columns[j]?.type === "date" ? fmtDate(r[j]) : r[j] || "—"}
                   </td>
                 ))}
               </tr>
@@ -632,7 +633,7 @@ export function CustomFieldValue({ field, value, fit = false }: { field: Candida
       </span>
     );
   }
-  const text = String(value);
+  const text = field.type === "date" ? fmtDate(String(value)) : String(value);
   const linkClass = "text-primary underline-offset-2 hover:underline break-all";
   if (field.type === "yesno") return <span>{text === "yes" ? t("Yes") : t("No")}</span>;
   if (field.type === "email")

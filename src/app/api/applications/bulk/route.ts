@@ -1,3 +1,4 @@
+import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 
@@ -48,6 +49,7 @@ export async function POST(req: Request) {
       )
     );
 
+    for (const cid of toCreate) await notifyCandidate(cid, "app_added", { job: job.title }, { tab: "mine" });
     return json({
       created: toCreate.length,
       skipped: alreadySet.size,

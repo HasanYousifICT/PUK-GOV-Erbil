@@ -1,4 +1,5 @@
 "use client";
+import { fmtDate, fmtDateTime, time12 } from "@/lib/datetime";
 import { JobTitleText } from "@/components/job-title-text";
 
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
@@ -392,7 +393,7 @@ export function ApplyView({
                   {saving ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Save className="me-2 h-4 w-4" />}
                   {t("Save progress")}
                 </Button>
-                {savedAt && <p className="mt-1.5 text-xs text-emerald-700">{t("Last saved")}: {new Date(savedAt).toLocaleString(locale === "ckb" ? "ckb" : undefined)}</p>}
+                {savedAt && <p className="mt-1.5 text-xs text-emerald-700">{t("Last saved")}: {fmtDateTime(savedAt)}</p>}
               </div>
             )}
             <div className="flex flex-col gap-2 sm:flex-row">

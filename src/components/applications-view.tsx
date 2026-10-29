@@ -1,4 +1,5 @@
 "use client";
+import { fmtDate, fmtDateTime, time12 } from "@/lib/datetime";
 import { JobTitleText } from "@/components/job-title-text";
 import { SearchableSelect } from "@/components/searchable-select";
 import { useJobTitles } from "@/components/job-titles";
@@ -451,7 +452,7 @@ function ApplicationDetailDialog({
                     <InterviewStatusBadge status={iv.status} />
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {t("{date} at {time}", { date: formatDate(iv.date), time: iv.time })}
+                    {t("{date} at {time}", { date: formatDate(iv.date), time: time12(iv.time) })}
                   </p>
                   {iv.feedback && (
                     <p className="mt-1.5 rounded-md bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground">

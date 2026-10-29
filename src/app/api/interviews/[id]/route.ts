@@ -1,3 +1,5 @@
+import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
+import { applicationFacts } from "@/lib/notify-server";
 import { cleanEvaluation, resolveInterviewers, statusFor } from "@/lib/interview-server";
 import { parseEvaluations, parseIds } from "@/lib/interview-rules";
 import { db } from "@/lib/db";
@@ -86,6 +88,27 @@ export async function PUT(req: Request, { params }: Params) {
       data,
       include: INCLUDE,
     });
+    // tell the people involved what changed
+    const facts = await applicationFacts(existing.applicationId);
+    if (facts) {
+      const date = interview.date;
+      const time = interview.time;
+      const idsNow = parseIds(interview.interviewerIds);
+      const idsBefore = parseIds(existing.interviewerIds);
+      const link = { view: "interviews" };
+      if (interview.status === "Cancelled" && existing.status !== "Cancelled") {
+        await notifyCandidate(facts.candidateId, "iv_cancelled", { job: facts.job, date, time }, { tab: "mine" });
+        await notifyUsers(idsNow.filter((x) => x !== user.id), "iv_cancelled_staff", { candidate: facts.candidate, job: facts.job }, link);
+      } else if (interview.status !== "Cancelled" && (existing.date !== date || existing.time !== time)) {
+        await notifyCandidate(facts.candidateId, "iv_changed", { job: facts.job, date, time }, { tab: "mine" });
+        await notifyUsers(idsNow.filter((x) => x !== user.id), "iv_changed_staff", { candidate: facts.candidate, job: facts.job, date, time }, link);
+      }
+      const added = idsNow.filter((x) => !idsBefore.includes(x) && x !== user.id);
+      if (added.length && interview.status !== "Cancelled") await notifyUsers(added, "iv_assigned", { candidate: facts.candidate, job: facts.job, date, time }, link);
+      if (interview.status === "Completed" && existing.status !== "Completed") {
+        await notifyUsers(await usersWith("applications"), "iv_completed", { candidate: facts.candidate, job: facts.job }, { view: "applications", focusApplicationId: facts.applicationId });
+      }
+    }
     return json(interview);
   });
 }

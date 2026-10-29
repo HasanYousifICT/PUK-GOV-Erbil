@@ -1,4 +1,5 @@
 "use client";
+import { fmtDate, fmtDateTime, time12 } from "@/lib/datetime";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { FileText, Loader2, ScanSearch, Trash2, Upload, X } from "lucide-react";
@@ -382,7 +383,7 @@ export function CandidateFormDialog({
           )}
 
           {!candidate && draftSavedAt && (
-            <p className="text-xs text-muted-foreground">{t("Draft saved at {time}", { time: draftSavedAt.toLocaleTimeString() })}</p>
+            <p className="text-xs text-muted-foreground">{t("Draft saved at {time}", { time: fmtDateTime(draftSavedAt) })}</p>
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>

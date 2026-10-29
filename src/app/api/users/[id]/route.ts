@@ -1,3 +1,4 @@
+import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { ApiError, handle, json, readJson, requireAdmin, str } from "@/lib/api";
@@ -72,7 +73,14 @@ export async function PUT(req: Request, { params }: Params) {
       if (str(body.password).length < 6) throw new ApiError(400, "Password must be at least 6 characters");
       data.password = await hashPassword(str(body.password));
     }
-    return json(toManaged(await db.user.update({ where: { id }, data, select: userSelect })));
+    const updated = await db.user.update({ where: { id }, data, select: userSelect });
+    if (id !== me.id) {
+      if (data.password) await notifyUsers([id], "pw_reset", {});
+      if (data.role !== undefined || data.permissions !== undefined) await notifyUsers([id], "perm_changed", {});
+      if (data.active === false) await notifyUsers([id], "acct_disabled", {});
+      if (data.name !== undefined || data.title !== undefined || data.phone !== undefined) await notifyUsers([id], "profile_changed", {});
+    }
+    return json(toManaged(updated));
   });
 }
 

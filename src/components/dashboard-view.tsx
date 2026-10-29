@@ -1,4 +1,5 @@
 "use client";
+import { fmtDate, fmtDateTime, time12 } from "@/lib/datetime";
 import { JobTitleText } from "@/components/job-title-text";
 
 import { ReactNode, useCallback, useState } from "react";
@@ -86,12 +87,8 @@ export function DashboardView({ user, onNavigate }: { user: SessionUser; onNavig
   useLoadEffect(load);
 
   const stats = data?.stats;
-  const today = new Date().toLocaleDateString(locale === "ckb" ? "ckb-IQ" : "en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const today = fmtDate(new Date());
+
 
   // reached each stage or later (a funnel); rejected applications only count as having applied
   const totalApps: number = data ? [...STAGES, "Rejected"].reduce((sum: number, k: string) => sum + (data.pipeline[k] ?? 0), 0) : 0;
@@ -230,7 +227,7 @@ export function DashboardView({ user, onNavigate }: { user: SessionUser; onNavig
                       axisLine={false}
                       tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                       interval={4}
-                      tickFormatter={(d: string) => d.slice(5)}
+                      tickFormatter={(d: string) => `${d.slice(8, 10)}-${d.slice(5, 7)}`}
                     />
                     <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
                     <Tooltip
@@ -313,13 +310,13 @@ export function DashboardView({ user, onNavigate }: { user: SessionUser; onNavig
                         <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg bg-primary/10 text-primary">
                           <span className="text-sm font-bold leading-none tabular-nums">{i.date.slice(8, 10)}</span>
                           <span className="mt-0.5 text-[9px] uppercase leading-none">
-                            {new Date(`${i.date}T00:00:00`).toLocaleDateString(locale === "ckb" ? "ckb-IQ" : "en-GB", { month: "short" })}
+                            {i.date.slice(5, 7)}
                           </span>
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium">{i.candidate}</span>
                           <span className="block truncate text-xs text-muted-foreground">
-                            {i.time} · {i.job}
+                            {time12(i.time)} · {i.job}
                           </span>
                         </span>
                       </button>

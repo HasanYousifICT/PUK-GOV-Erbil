@@ -1,4 +1,5 @@
 "use client";
+import { fmtDate, fmtDateTime, time12 } from "@/lib/datetime";
 import { JobTitleText } from "@/components/job-title-text";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -797,7 +798,7 @@ export function CandidateDetailView({
                       </p>
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
                         <CalendarDays className="h-3 w-3" />
-                        {t("{date} at {time}", { date: formatDate(iv.date), time: iv.time })}
+                        {t("{date} at {time}", { date: formatDate(iv.date), time: time12(iv.time) })}
                       </p>
                     </div>
                     <InterviewStatusBadge status={iv.status} />

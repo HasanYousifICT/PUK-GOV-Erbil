@@ -1,3 +1,4 @@
+import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { ApiError, handle, json, readJson, requireLevel, str } from "@/lib/api";
@@ -60,7 +61,10 @@ export async function PUT(req: Request, { params }: Ctx) {
     if (!(await db.candidateAccount.findUnique({ where: { id }, select: { id: true } }))) {
       throw new ApiError(404, "Account not found");
     }
-    return json(await db.candidateAccount.update({ where: { id }, data, select: accountSelect }));
+    const updated = await db.candidateAccount.update({ where: { id }, data, select: accountSelect });
+    if (data.passwordHash) await notifyCandidate(updated.candidateId, "pw_reset", {});
+    else if (data.username !== undefined || data.phone !== undefined || data.email !== undefined || data.fullName !== undefined) await notifyCandidate(updated.candidateId, "login_changed", {});
+    return json(updated);
   });
 }
 

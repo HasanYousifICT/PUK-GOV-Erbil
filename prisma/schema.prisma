@@ -250,3 +250,18 @@ model CandidateDraft {
 
   @@index([userId, updatedAt])
 }
+
+// In-app notifications for staff users and for candidates in the portal.
+model Notification {
+  id            String   @id @default(cuid())
+  recipientKind String // "user" | "candidate"
+  recipientId   String
+  type          String
+  params        String   @default("{}") // JSON used to fill the message text
+  link          String   @default("") // JSON describing where the notification leads
+  read          Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([recipientKind, recipientId, read])
+  @@index([createdAt])
+}

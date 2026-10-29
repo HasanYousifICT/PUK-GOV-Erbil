@@ -18,6 +18,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { ConfirmDialog } from "@/components/shared";
 import { apiClient, SessionUser } from "@/lib/client";
 import { Area, can } from "@/lib/permissions";
+import { NotificationBell, staffBell } from "@/components/notification-bell";
 import { PermissionsProvider } from "@/lib/permissions-context";
 import { useOrg } from "@/lib/org-context";
 import { cn } from "@/lib/utils";
@@ -83,8 +84,9 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col">
       {/* Brand */}
+      <div className="flex items-center justify-between gap-1 pe-3">
       <button
-        className="flex items-center gap-3 px-5 pb-4 pt-6 text-start text-sidebar-foreground"
+        className="flex min-w-0 items-center gap-3 px-5 pb-4 pt-6 text-start text-sidebar-foreground"
         onClick={() => onNavigate({ view: "dashboard" })}
       >
         <img src={org.logoUrl} alt="" className="h-9 w-9 object-contain" />
@@ -93,6 +95,13 @@ function SidebarContent({
           {org.tagline && <span className="block text-[10px] leading-tight text-muted-foreground">{org.tagline}</span>}
         </span>
       </button>
+      <NotificationBell
+        className="mt-3 hidden shrink-0 text-sidebar-foreground hover:bg-white/10 hover:text-sidebar-foreground lg:inline-flex"
+        source={staffBell}
+        onOpenLink={(l) => onNavigate(l as NavState)}
+        onOpenAction={() => onNavigate({ view: "interviews" })}
+      />
+      </div>
 
       {/* Nav (scrolls when the menu is long; leaves room for the user bar) */}
       <nav className="thin-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-3 pb-20 pt-2" aria-label={t("Main navigation")}>
@@ -213,6 +222,8 @@ export function AppShell({
           <img src={org.logoUrl} alt="" className="h-7 w-7 object-contain" />
           <span className="text-sm font-bold tracking-tight">{org.name}</span>
         </div>
+        <div className="flex items-center gap-2">
+        <NotificationBell source={staffBell} onOpenLink={(l) => navigate(l as NavState)} onOpenAction={() => navigate({ view: "interviews" })} />
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" aria-label={t("Open navigation menu")}>
@@ -226,6 +237,7 @@ export function AppShell({
             <SidebarContent nav={nav} user={user} onNavigate={navigate} />
           </SheetContent>
         </Sheet>
+        </div>
       </header>
 
       {/* Main content */}
