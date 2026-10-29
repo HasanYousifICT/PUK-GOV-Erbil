@@ -1,3 +1,5 @@
+import { jobWhereFromParams } from "@/lib/job-filter-server";
+import { resolveInterviewers } from "@/lib/interview-server";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 
@@ -7,8 +9,22 @@ export async function GET(req: Request) {
     await requireLevel(req, "interviews", "view");
     const url = new URL(req.url);
     const status = url.searchParams.get("status");
+    const sqlite = (process.env.DATABASE_URL ?? "file:").startsWith("file:");
+    const has = (v: string) => (sqlite ? { contains: v } : { contains: v, mode: "insensitive" as const });
+    const and: Record<string, unknown>[] = [];
+    if (status) and.push({ status });
+    const jobWhere = await jobWhereFromParams(url.searchParams);
+    if (Object.keys(jobWhere).length) and.push({ application: { job: jobWhere } });
+    const day = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "");
+    const from = day(url.searchParams.get("from"));
+    const to = day(url.searchParams.get("to"));
+    if (from) and.push({ date: { gte: from } });
+    if (to) and.push({ date: { lte: to } });
+    const q = (url.searchParams.get("q") ?? "").trim().slice(0, 100);
+    if (q) and.push({ OR: [{ interviewer: has(q) }, { application: { candidate: { name: has(q) } } }] });
     const interviews = await db.interview.findMany({
-      where: status ? { status } : undefined,
+      where: and.length ? { AND: and } : undefined,
+      take: 3000,
       orderBy: [{ date: "asc" }, { time: "asc" }],
       include: {
         application: {
@@ -31,11 +47,11 @@ export async function POST(req: Request) {
     await requireLevel(req, "interviews", "edit");
     const body = await readJson<Record<string, unknown>>(req);
     const applicationId = str(body.applicationId);
-    const interviewer = str(body.interviewer).trim();
+    const people = await resolveInterviewers(body.interviewerIds);
+    const requireAll = people.ids.length > 1 ? body.requireAll !== false : true;
     const date = str(body.date).trim();
     const time = str(body.time).trim();
     if (!applicationId) throw new ApiError(400, "Application is required");
-    if (!interviewer) throw new ApiError(400, "Interviewer is required");
     if (!date || !time) throw new ApiError(400, "Date and time are required");
 
     const application = await db.application.findUnique({ where: { id: applicationId } });
@@ -44,7 +60,9 @@ export async function POST(req: Request) {
     const interview = await db.interview.create({
       data: {
         applicationId,
-        interviewer,
+        interviewer: people.names,
+        interviewerIds: JSON.stringify(people.ids),
+        requireAll,
         date,
         time,
         status: "Scheduled",

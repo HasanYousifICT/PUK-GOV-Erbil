@@ -1,6 +1,8 @@
 "use client";
 import { JobTitleText } from "@/components/job-title-text";
 import { Pager } from "@/components/pager";
+import { SearchableSelect } from "@/components/searchable-select";
+import { useJobTitles } from "@/components/job-titles";
 import { CustomFilterRows } from "@/components/custom-filter-rows";
 import { CustomFilter } from "@/lib/candidate-filters";
 import { parseRequirements } from "@/lib/job-requirements";
@@ -21,6 +23,7 @@ import {
   Search,
   Trash2,
   Users,
+  X,
 } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { format } from "date-fns";
@@ -410,6 +413,25 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
   const [filter, setFilter] = useState<JobFilter>("all");
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [titleFilter, setTitleFilter] = useState<string>("");
+  const [specFilter, setSpecFilter] = useState<"any" | "yes" | "no">("any");
+  const [noteFilter, setNoteFilter] = useState<string>("");
+  const [annFilter, setAnnFilter] = useState<"any" | "yes" | "no">("any");
+  const { list: titleList } = useJobTitles();
+  const [notes, setNotes] = useState<string[]>([]);
+  useEffect(() => {
+    if (specFilter === "yes") apiClient.jobSpecialists().then(setNotes).catch(() => setNotes([]));
+  }, [specFilter, jobs]);
+  const hasFilters = !!(query || filter !== "all" || categoryFilter || titleFilter || specFilter !== "any" || annFilter !== "any");
+  const clearFilters = () => {
+    setQuery("");
+    setFilter("all");
+    setCategoryFilter(null);
+    setTitleFilter("");
+    setSpecFilter("any");
+    setNoteFilter("");
+    setAnnFilter("any");
+  };
   const { index: catIndex } = useCategories();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Job | null>(null);
@@ -426,7 +448,7 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
   }, [query]);
   useEffect(() => {
     setPage(1);
-  }, [queryKey, filter, categoryFilter]);
+  }, [queryKey, filter, categoryFilter, titleFilter, specFilter, noteFilter, annFilter]);
 
   const load = useCallback(async () => {
     try {
@@ -436,6 +458,10 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
         q: queryKey || undefined,
         status: filter === "all" ? undefined : filter,
         categoryId: categoryFilter ?? undefined,
+        title: titleFilter || undefined,
+        specialist: specFilter === "any" ? undefined : specFilter,
+        specialistNote: specFilter === "yes" ? noteFilter || undefined : undefined,
+        announced: annFilter === "any" ? undefined : annFilter,
       });
       setJobs(res.items);
       setTotal(res.total);
@@ -444,7 +470,7 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load jobs");
     }
-  }, [page, queryKey, filter, categoryFilter]);
+  }, [page, queryKey, filter, categoryFilter, titleFilter, specFilter, noteFilter, annFilter]);
 
   useLoadEffect(load);
 
@@ -495,25 +521,90 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
       />
 
       {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search className="absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder={t("Search jobs…")}
-            className="ps-8"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label={t("Search jobs")}
-          />
+      <div className="space-y-3 rounded-xl border bg-card p-3 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative flex-1 lg:max-w-xs">
+            <Search className="absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder={t("Search jobs…")}
+              className="ps-8"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label={t("Search jobs")}
+            />
+          </div>
+          <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} index={catIndex} />
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as JobFilter)}>
+            <TabsList>
+              <TabsTrigger value="all">{t("All")}</TabsTrigger>
+              <TabsTrigger value="Open">{t("Open")}</TabsTrigger>
+              <TabsTrigger value="Closed">{t("Closed")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
-        <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} index={catIndex} />
-        <Tabs value={filter} onValueChange={(v) => setFilter(v as JobFilter)}>
-          <TabsList>
-            <TabsTrigger value="all">{t("All")}</TabsTrigger>
-            <TabsTrigger value="Open">{t("Open")}</TabsTrigger>
-            <TabsTrigger value="Closed">{t("Closed")}</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("Job title")}</Label>
+            <SearchableSelect
+              value={titleFilter || undefined}
+              ariaLabel={t("Job title")}
+              noneLabel={t("All job titles")}
+              options={(titleList ?? []).map((r) => ({ value: r.title, label: locale === "ckb" && r.titleCkb ? r.titleCkb : r.title }))}
+              onChange={(v) => setTitleFilter(v ?? "")}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("Specialist")}</Label>
+            <Select
+              value={specFilter}
+              onValueChange={(v) => {
+                setSpecFilter(v as "any" | "yes" | "no");
+                setNoteFilter("");
+              }}
+            >
+              <SelectTrigger aria-label={t("Specialist")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{t("Any")}</SelectItem>
+                <SelectItem value="yes">{t("Has a specialist")}</SelectItem>
+                <SelectItem value="no">{t("No specialist")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {specFilter === "yes" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{t("Specialist description")}</Label>
+              <SearchableSelect
+                value={noteFilter || undefined}
+                ariaLabel={t("Specialist description")}
+                noneLabel={t("All specialists")}
+                options={notes.map((n) => ({ value: n, label: n }))}
+                onChange={(v) => setNoteFilter(v ?? "")}
+              />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("Candidate portal")}</Label>
+            <Select value={annFilter} onValueChange={(v) => setAnnFilter(v as "any" | "yes" | "no")}>
+              <SelectTrigger aria-label={t("Candidate portal")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{t("Any")}</SelectItem>
+                <SelectItem value="yes">{t("Announced")}</SelectItem>
+                <SelectItem value="no">{t("Not announced")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {hasFilters && (
+            <div className="flex items-end">
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <X className="me-1.5 h-4 w-4" /> {t("Clear filters")}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       {error && <ErrorState message={error} onRetry={load} />}
@@ -522,22 +613,15 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
       {jobs && filtered.length === 0 && !error && (
         <EmptyState
           icon={<Briefcase className="h-5 w-5" />}
-          title={query || filter !== "all" || categoryFilter ? "No jobs match your filters" : "No jobs yet"}
+          title={hasFilters ? "No jobs match your filters" : "No jobs yet"}
           description={
-            query || filter !== "all" || categoryFilter
+            hasFilters
               ? "Try a different search term or status filter."
               : "Create your first job to start building your pipeline."
           }
           action={
-            (query || filter !== "all" || categoryFilter) ? (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setQuery("");
-                  setFilter("all");
-                  setCategoryFilter(null);
-                }}
-              >
+            hasFilters ? (
+              <Button variant="outline" onClick={clearFilters}>
                 {t("Clear filters")}
               </Button>
             ) : (
@@ -567,6 +651,7 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
                   <th className="px-4 py-3 font-medium">{t("Experience")}</th>
                   <th className="px-4 py-3 font-medium">{t("Type")}</th>
                   <th className="px-4 py-3 font-medium">{t("Status")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Candidate portal")}</th>
                   <th className="px-4 py-3 text-center font-medium">{t("Candidates")}</th>
                   <th className="px-4 py-3 text-end font-medium">{t("Actions")}</th>
                 </tr>
@@ -585,9 +670,13 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
                           {categoryPathText(job.categoryId, catIndex, locale)}
                         </p>
                       )}
-                      {job.specialist && (
+                      {job.specialist ? (
                         <p className="max-w-xs truncate text-xs font-medium text-amber-700" title={job.specialistNote}>
                           {t("Specialist")}: {job.specialistNote}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          {t("Specialist")}: {t("No")}
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground">
@@ -603,6 +692,11 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
                     </td>
                     <td className="px-4 py-3">
                       <JobStatusBadge status={job.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={job.announced ? "default" : "secondary"} className="font-normal">
+                        {job.announced ? t("Announced") : t("Not announced")}
+                      </Badge>
                     </td>
                     <td className="px-4 py-3 text-center font-medium tabular-nums">
                       {job._count?.applications ?? 0}
@@ -664,6 +758,9 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
                     )}
                     <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="h-3 w-3" /> {job.location || "—"} · {t(job.employmentType)}
+                    </p>
+                    <p className={`text-xs ${job.specialist ? "font-medium text-amber-700" : "text-muted-foreground"}`}>
+                      {t("Specialist")}: {job.specialist ? job.specialistNote : t("No")} · {job.announced ? t("Announced") : t("Not announced")}
                     </p>
                   </div>
                   <JobStatusBadge status={job.status} />
@@ -820,6 +917,9 @@ export function JobDetailView({
           {job.categoryId && (
             <p className="mt-1 text-sm text-primary">{categoryPathText(job.categoryId, catIndex, locale)}</p>
           )}
+          <p className={`mt-1 text-sm ${job.specialist ? "font-medium text-amber-700" : "text-muted-foreground"}`}>
+            {t("Specialist")}: {job.specialist ? job.specialistNote : t("No")}
+          </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <MapPin className="h-3.5 w-3.5" /> {job.location || "—"}

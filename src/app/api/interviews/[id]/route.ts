@@ -1,3 +1,5 @@
+import { resolveInterviewers, statusFor } from "@/lib/interview-server";
+import { parseIds } from "@/lib/interview-rules";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { isValidInterviewStatus } from "@/lib/constants";
@@ -24,12 +26,30 @@ export async function PUT(req: Request, { params }: Params) {
     const existing = await db.interview.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Interview not found");
 
-    const data: Record<string, string> = {};
-    if ("interviewer" in body) {
-      const interviewer = str(body.interviewer).trim();
-      if (!interviewer) throw new ApiError(400, "Interviewer is required");
-      data.interviewer = interviewer;
+    const data: Record<string, string | boolean> = {};
+    let ids = parseIds(existing.interviewerIds);
+    let requireAll = existing.requireAll;
+    let doneIds = parseIds(existing.doneIds);
+    let touched = false;
+    if ("interviewerIds" in body) {
+      const people = await resolveInterviewers(body.interviewerIds);
+      ids = people.ids;
+      data.interviewer = people.names;
+      data.interviewerIds = JSON.stringify(ids);
+      doneIds = doneIds.filter((d) => ids.includes(d));
+      touched = true;
     }
+    if ("requireAll" in body) {
+      requireAll = ids.length > 1 ? body.requireAll !== false : true;
+      touched = true;
+    }
+    if (ids.length <= 1) requireAll = true;
+    if (touched) data.requireAll = requireAll;
+    if ("doneIds" in body) {
+      doneIds = parseIds(body.doneIds).filter((d) => ids.includes(d));
+      touched = true;
+    }
+    if (touched) data.doneIds = JSON.stringify(doneIds);
     if ("date" in body) {
       const date = str(body.date).trim();
       if (!date) throw new ApiError(400, "Date is required");
@@ -45,6 +65,8 @@ export async function PUT(req: Request, { params }: Params) {
       const status = str(body.status);
       if (!isValidInterviewStatus(status)) throw new ApiError(400, "Invalid interview status");
       data.status = status;
+    } else if (touched && ids.length > 0) {
+      data.status = statusFor(existing.status, requireAll, ids, doneIds);
     }
 
     const interview = await db.interview.update({

@@ -43,6 +43,25 @@ export async function GET(req: Request) {
       while (stack.length) for (const k of kids.get(stack.pop()!) ?? []) if (!ids.has(k)) (ids.add(k), stack.push(k));
       and.push({ job: { categoryId: { in: [...ids] } } });
     }
+    const jobWhere: Prisma.JobWhereInput = {};
+    const jt = (sp.get("title") ?? "").trim().slice(0, 200);
+    if (jt) jobWhere.title = jt;
+    const spec = sp.get("specialist");
+    if (spec === "yes") jobWhere.specialist = true;
+    if (spec === "no") jobWhere.specialist = false;
+    const note = (sp.get("specialistNote") ?? "").trim().slice(0, 500);
+    if (note) {
+      jobWhere.specialist = true;
+      jobWhere.specialistNote = note;
+    }
+    const jobStatus = sp.get("jobStatus");
+    if (jobStatus === "Open" || jobStatus === "Closed") jobWhere.status = jobStatus;
+    if (Object.keys(jobWhere).length) and.push({ job: jobWhere });
+    const day = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "");
+    const from = day(sp.get("from"));
+    const to = day(sp.get("to"));
+    if (from) and.push({ appliedAt: { gte: new Date(`${from}T00:00:00.000Z`) } });
+    if (to) and.push({ appliedAt: { lte: new Date(`${to}T23:59:59.999Z`) } });
     if (q) {
       // find matching candidates first (indexed scan), then filter applications by id — far faster than joining
       const hits = await db.candidate.findMany({

@@ -191,6 +191,9 @@ export type Interview = {
   id: string;
   applicationId: string;
   interviewer: string;
+  interviewerIds?: string;
+  requireAll?: boolean;
+  doneIds?: string;
   date: string;
   time: string;
   status: "Scheduled" | "Completed" | "Cancelled";
@@ -349,10 +352,11 @@ export const apiClient = {
   /** How many other jobs share this title and classification. */
   jobDuplicates: (title: string, categoryId: string, excludeId?: string) =>
     api<{ count: number }>(`/api/jobs/duplicates${qs({ title, categoryId, excludeId })}`),
-  listJobsPage: (p: { page?: number; pageSize?: number; q?: string; status?: string; categoryId?: string }) =>
+  jobSpecialists: () => api<string[]>("/api/jobs/specialists"),
+  listJobsPage: (p: { page?: number; pageSize?: number; q?: string; status?: string; categoryId?: string; title?: string; specialist?: string; specialistNote?: string; announced?: string }) =>
     api<Paged<Job>>(`/api/jobs${qs({ pageSize: 50, ...p, page: p.page ?? 1 })}`),
   /** A short list for pickers: at most `limit` jobs matching the search. */
-  searchJobs: (p: { q?: string; status?: string; categoryId?: string; limit?: number }) =>
+  searchJobs: (p: { q?: string; status?: string; categoryId?: string; title?: string; specialist?: string; specialistNote?: string; limit?: number }) =>
     api<JobLite[]>(`/api/jobs${qs({ ...p, light: 1 })}`),
   getJob: (id: string) => api<JobDetail>(`/api/jobs/${id}`),
   createJob: (data: JobInput) => api<Job>("/api/jobs", { method: "POST", body: JSON.stringify(data) }),
@@ -540,7 +544,7 @@ export const apiClient = {
     api<Application[]>(`/api/applications${qs({ ...filters })}`),
   /** The pipeline board: a limited number of applications per stage plus the full count of each stage. */
   getApplication: (id: string) => api<Application>(`/api/applications/${id}`),
-  listBoard: (f: { jobId?: string; categoryId?: string; q?: string; stage?: string; offset?: number; perStage?: number }) =>
+  listBoard: (f: { jobId?: string; categoryId?: string; title?: string; specialist?: string; specialistNote?: string; jobStatus?: string; from?: string; to?: string; q?: string; stage?: string; offset?: number; perStage?: number }) =>
     api<{ items: Application[]; counts: Record<string, number> }>(`/api/applications${qs({ ...f, board: 1 })}`),
   bulkAddToJob: (candidateIds: string[], jobId: string) =>
     api<BulkAddResult>("/api/applications/bulk", { method: "POST", body: JSON.stringify({ candidateIds, jobId }) }),
@@ -551,10 +555,12 @@ export const apiClient = {
   deleteApplication: (id: string) => api<{ ok: boolean }>(`/api/applications/${id}`, { method: "DELETE" }),
 
   /* interviews */
-  listInterviews: (status?: string) => api<Interview[]>(`/api/interviews${qs({ status })}`),
-  createInterview: (data: { applicationId: string; interviewer: string; date: string; time: string; feedback?: string }) =>
+  listInterviews: (p?: { status?: string; jobId?: string; categoryId?: string; title?: string; specialist?: string; specialistNote?: string; jobStatus?: string; from?: string; to?: string; q?: string }) =>
+    api<Interview[]>(`/api/interviews${qs(p ?? {})}`),
+  createInterview: (data: { applicationId: string; interviewerIds: string[]; requireAll: boolean; date: string; time: string; feedback?: string }) =>
     api<Interview>("/api/interviews", { method: "POST", body: JSON.stringify(data) }),
-  updateInterview: (id: string, data: Partial<{ interviewer: string; date: string; time: string; status: string; feedback: string }>) =>
+  listInterviewers: () => api<{ id: string; name: string; title: string }[]>("/api/interviewers"),
+  updateInterview: (id: string, data: Partial<{ interviewerIds: string[]; requireAll: boolean; doneIds: string[]; date: string; time: string; status: string; feedback: string }>) =>
     api<Interview>(`/api/interviews/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteInterview: (id: string) => api<{ ok: boolean }>(`/api/interviews/${id}`, { method: "DELETE" }),
 

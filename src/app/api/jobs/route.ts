@@ -23,6 +23,16 @@ export async function GET(req: Request) {
     const has = (v: string) => (sqlite ? { contains: v } : { contains: v, mode: "insensitive" as const });
     const and: Prisma.JobWhereInput[] = [];
     if (status) and.push({ status });
+    const title = (sp.get("title") ?? "").trim().slice(0, 200);
+    if (title) and.push({ title });
+    const spec = sp.get("specialist");
+    if (spec === "yes") and.push({ specialist: true });
+    if (spec === "no") and.push({ specialist: false });
+    const note = (sp.get("specialistNote") ?? "").trim().slice(0, 500);
+    if (note) and.push({ specialist: true, specialistNote: note });
+    const ann = sp.get("announced");
+    if (ann === "yes") and.push({ announced: true });
+    if (ann === "no") and.push({ announced: false });
     if (q) and.push({ OR: [{ title: has(q) }, { location: has(q) }, { skills: has(q) }] });
     if (categoryId) {
       const cats = await db.jobCategory.findMany({ select: { id: true, parentId: true } });

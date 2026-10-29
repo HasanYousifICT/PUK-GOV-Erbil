@@ -1,6 +1,8 @@
 "use client";
 import { JobTitleText } from "@/components/job-title-text";
-import { JobPicker } from "@/components/job-picker";
+import { SearchableSelect } from "@/components/searchable-select";
+import { useJobTitles } from "@/components/job-titles";
+import { useJobTitle } from "@/components/job-title-text";
 
 import { Input } from "@/components/ui/input";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -57,7 +59,7 @@ import {
   STAGES,
   STAGE_STYLES,
 } from "@/lib/constants";
-import { Application, apiClient } from "@/lib/client";
+import { Application, apiClient, JobLite } from "@/lib/client";
 import { NavState } from "@/components/app-shell";
 import { AddApplicationDialog } from "@/components/add-application-dialog";
 import { InterviewFormDialog } from "@/components/interview-form-dialog";
@@ -499,6 +501,38 @@ export function ApplicationsView({
   const [error, setError] = useState<string | null>(null);
   const [jobFilter, setJobFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [titleFilter, setTitleFilter] = useState("");
+  const [specFilter, setSpecFilter] = useState<"any" | "yes" | "no">("any");
+  const [noteFilter, setNoteFilter] = useState("");
+  const [jobStatusFilter, setJobStatusFilter] = useState<"any" | "Open" | "Closed">("any");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const { list: titleList } = useJobTitles();
+  const jobTitle = useJobTitle();
+  const { locale } = useI18n();
+  const [notes, setNotes] = useState<string[]>([]);
+  const [jobOptions, setJobOptions] = useState<JobLite[]>([]);
+  useEffect(() => {
+    if (specFilter === "yes") apiClient.jobSpecialists().then(setNotes).catch(() => setNotes([]));
+  }, [specFilter]);
+  // the job dropdown only lists jobs that match the filters chosen before it
+  useEffect(() => {
+    let live = true;
+    apiClient
+      .searchJobs({
+        categoryId: categoryFilter ?? undefined,
+        title: titleFilter || undefined,
+        specialist: specFilter === "any" ? undefined : specFilter,
+        specialistNote: specFilter === "yes" ? noteFilter || undefined : undefined,
+        status: jobStatusFilter === "any" ? undefined : jobStatusFilter,
+        limit: 100,
+      })
+      .then((r) => live && setJobOptions(r))
+      .catch(() => live && setJobOptions([]));
+    return () => {
+      live = false;
+    };
+  }, [categoryFilter, titleFilter, specFilter, noteFilter, jobStatusFilter]);
   const { index: catIndex } = useCategories();
   const [addOpen, setAddOpen] = useState(false);
   const [detailAppId, setDetailAppId] = useState<string | null>(null);
@@ -518,6 +552,12 @@ export function ApplicationsView({
       const res = await apiClient.listBoard({
         jobId: jobFilter !== "all" ? jobFilter : undefined,
         categoryId: categoryFilter ?? undefined,
+        title: titleFilter || undefined,
+        specialist: specFilter === "any" ? undefined : specFilter,
+        specialistNote: specFilter === "yes" ? noteFilter || undefined : undefined,
+        jobStatus: jobStatusFilter === "any" ? undefined : jobStatusFilter,
+        from: fromDate || undefined,
+        to: toDate || undefined,
         q: searchKey || undefined,
       });
       setApps(res.items);
@@ -526,7 +566,7 @@ export function ApplicationsView({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load applications");
     }
-  }, [jobFilter, categoryFilter, searchKey]);
+  }, [jobFilter, categoryFilter, titleFilter, specFilter, noteFilter, jobStatusFilter, fromDate, toDate, searchKey]);
 
   useLoadEffect(load);
 
@@ -537,6 +577,12 @@ export function ApplicationsView({
       const res = await apiClient.listBoard({
         jobId: jobFilter !== "all" ? jobFilter : undefined,
         categoryId: categoryFilter ?? undefined,
+        title: titleFilter || undefined,
+        specialist: specFilter === "any" ? undefined : specFilter,
+        specialistNote: specFilter === "yes" ? noteFilter || undefined : undefined,
+        jobStatus: jobStatusFilter === "any" ? undefined : jobStatusFilter,
+        from: fromDate || undefined,
+        to: toDate || undefined,
         q: searchKey || undefined,
         stage,
         offset: have,
@@ -610,28 +656,138 @@ export function ApplicationsView({
         }
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <CategoryFilter
-          value={categoryFilter}
-          onChange={(id) => {
-            setCategoryFilter(id);
-            setJobFilter("all");
-          }}
-          index={catIndex}
-        />
-        <div className="w-full sm:w-72">
-          <JobPicker compact value={jobFilter === "all" ? "" : jobFilter} categoryId={categoryFilter} onChange={(id) => setJobFilter(id || "all")} />
+      <div className="space-y-3 rounded-xl border bg-card p-3 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("Search by name, phone or e-mail")}
+            aria-label={t("Search by name, phone or e-mail")}
+            className="w-full lg:w-72"
+          />
+          <CategoryFilter
+            value={categoryFilter}
+            onChange={(id) => {
+              setCategoryFilter(id);
+              setJobFilter("all");
+            }}
+            index={catIndex}
+          />
+          <p className="text-sm text-muted-foreground lg:ms-auto">
+            {t(totalApps === 1 ? "{n} application" : "{n} applications", { n: totalApps })}
+          </p>
         </div>
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t("Search by name, phone or e-mail")}
-          aria-label={t("Search by name, phone or e-mail")}
-          className="w-full sm:w-64"
-        />
-        <p className="text-sm text-muted-foreground">
-          {t(totalApps === 1 ? "{n} application" : "{n} applications", { n: totalApps })}
-        </p>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("Job title")}</Label>
+            <SearchableSelect
+              value={titleFilter || undefined}
+              ariaLabel={t("Job title")}
+              noneLabel={t("All job titles")}
+              options={(titleList ?? []).map((r) => ({ value: r.title, label: locale === "ckb" && r.titleCkb ? r.titleCkb : r.title }))}
+              onChange={(v) => {
+                setTitleFilter(v ?? "");
+                setJobFilter("all");
+              }}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("Specialist")}</Label>
+            <Select
+              value={specFilter}
+              onValueChange={(v) => {
+                setSpecFilter(v as "any" | "yes" | "no");
+                setNoteFilter("");
+                setJobFilter("all");
+              }}
+            >
+              <SelectTrigger aria-label={t("Specialist")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{t("Any")}</SelectItem>
+                <SelectItem value="yes">{t("Has a specialist")}</SelectItem>
+                <SelectItem value="no">{t("No specialist")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {specFilter === "yes" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{t("Specialist description")}</Label>
+              <SearchableSelect
+                value={noteFilter || undefined}
+                ariaLabel={t("Specialist description")}
+                noneLabel={t("All specialists")}
+                options={notes.map((n) => ({ value: n, label: n }))}
+                onChange={(v) => {
+                  setNoteFilter(v ?? "");
+                  setJobFilter("all");
+                }}
+              />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("Job status")}</Label>
+            <Select
+              value={jobStatusFilter}
+              onValueChange={(v) => {
+                setJobStatusFilter(v as "any" | "Open" | "Closed");
+                setJobFilter("all");
+              }}
+            >
+              <SelectTrigger aria-label={t("Job status")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{t("Any")}</SelectItem>
+                <SelectItem value="Open">{t("Open")}</SelectItem>
+                <SelectItem value="Closed">{t("Closed")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label className="text-xs text-muted-foreground">{t("Job")}</Label>
+            <SearchableSelect
+              value={jobFilter === "all" ? undefined : jobFilter}
+              ariaLabel={t("Job")}
+              noneLabel={t("All jobs")}
+              options={jobOptions.map((j) => ({
+                value: j.id,
+                label: [jobTitle(j.title), j.specialist && j.specialistNote ? `(${j.specialistNote})` : "", j.location].filter(Boolean).join(" · "),
+              }))}
+              onChange={(v) => setJobFilter(v || "all")}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("Applied from")}</Label>
+            <Input type="date" dir="ltr" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("Applied until")}</Label>
+            <Input type="date" dir="ltr" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+          </div>
+          {(search || categoryFilter || titleFilter || specFilter !== "any" || jobStatusFilter !== "any" || jobFilter !== "all" || fromDate || toDate) && (
+            <div className="flex items-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearch("");
+                  setCategoryFilter(null);
+                  setTitleFilter("");
+                  setSpecFilter("any");
+                  setNoteFilter("");
+                  setJobStatusFilter("any");
+                  setJobFilter("all");
+                  setFromDate("");
+                  setToDate("");
+                }}
+              >
+                {t("Clear filters")}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       {error && <ErrorState message={error} onRetry={load} />}

@@ -33,6 +33,10 @@ import {
   TableSkeleton,
   useLoadEffect,
 } from "@/components/shared";
+import { EMPTY_JOB_FILTER, JobFilterFields, JobFilterState, jobFilterActive, jobFilterParams } from "@/components/job-filter-fields";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { parseIds } from "@/lib/interview-rules";
 import { Interview, apiClient } from "@/lib/client";
 import { NavState } from "@/components/app-shell";
 import { InterviewFormDialog } from "@/components/interview-form-dialog";
@@ -40,6 +44,21 @@ import { InterviewFormDialog } from "@/components/interview-form-dialog";
 import { useI18n } from "@/lib/i18n";
 import { useCan } from "@/lib/permissions-context";
 type Filter = "all" | "Scheduled" | "Completed" | "Cancelled";
+
+function InterviewersText({ iv }: { iv: Interview }) {
+  const { t } = useI18n();
+  const ids = parseIds(iv.interviewerIds);
+  if (ids.length < 2) return <>{iv.interviewer}</>;
+  const done = parseIds(iv.doneIds).filter((d) => ids.includes(d)).length;
+  return (
+    <span>
+      {iv.interviewer}
+      <span className="block text-xs text-muted-foreground">
+        {iv.requireAll === false ? t("One of them is enough") : t("Both / all of them must interview")} · {done}/{ids.length}
+      </span>
+    </span>
+  );
+}
 
 export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) => void }) {
   const { t } = useI18n();
@@ -52,14 +71,27 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
   const [deleting, setDeleting] = useState<Interview | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
+  const [jf, setJf] = useState<JobFilterState>(EMPTY_JOB_FILTER);
+  const [search, setSearch] = useState("");
+  const [searchKey, setSearchKey] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setSearchKey(search.trim()), 300);
+    return () => clearTimeout(id);
+  }, [search]);
+  const hasFilters = jobFilterActive(jf) || !!searchKey || !!fromDate || !!toDate;
+
   const load = useCallback(async () => {
     try {
-      setInterviews(await apiClient.listInterviews());
+      setInterviews(
+        await apiClient.listInterviews({ ...jobFilterParams(jf), q: searchKey || undefined, from: fromDate || undefined, to: toDate || undefined })
+      );
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load interviews");
     }
-  }, []);
+  }, [jf, searchKey, fromDate, toDate]);
 
   useLoadEffect(load);
 
@@ -108,14 +140,52 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
         }
       />
 
-      <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
-        <TabsList>
-          <TabsTrigger value="all">{t("All")}</TabsTrigger>
-          <TabsTrigger value="Scheduled">{t("Scheduled")}</TabsTrigger>
-          <TabsTrigger value="Completed">{t("Completed")}</TabsTrigger>
-          <TabsTrigger value="Cancelled">{t("Cancelled")}</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="space-y-3 rounded-xl border bg-card p-3 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("Search by candidate or interviewer")}
+            aria-label={t("Search by candidate or interviewer")}
+            className="w-full lg:w-80"
+          />
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
+            <TabsList>
+              <TabsTrigger value="all">{t("All")}</TabsTrigger>
+              <TabsTrigger value="Scheduled">{t("Scheduled")}</TabsTrigger>
+              <TabsTrigger value="Completed">{t("Completed")}</TabsTrigger>
+              <TabsTrigger value="Cancelled">{t("Cancelled")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <JobFilterFields value={jf} onChange={setJf} />
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("Interview from")}</Label>
+            <Input type="date" dir="ltr" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("Interview until")}</Label>
+            <Input type="date" dir="ltr" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+          </div>
+          {hasFilters && (
+            <div className="flex items-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setJf(EMPTY_JOB_FILTER);
+                  setSearch("");
+                  setFromDate("");
+                  setToDate("");
+                }}
+              >
+                {t("Clear filters")}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
 
       {error && <ErrorState message={error} onRetry={load} />}
       {!interviews && !error && <TableSkeleton rows={4} />}
@@ -171,7 +241,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                     <td className="max-w-40 px-4 py-3">
                       <p className="truncate text-muted-foreground">{iv.application?.job ? <JobTitleText title={iv.application.job.title} /> : "—"}</p>
                     </td>
-                    <td className="px-4 py-3">{iv.interviewer}</td>
+                    <td className="px-4 py-3"><InterviewersText iv={iv} /></td>
                     <td className="px-4 py-3">
                       <p className="whitespace-nowrap">{formatDate(iv.date)}</p>
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -246,7 +316,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                 </div>
                 <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" /> {formatDate(iv.date)} · {iv.time} · {iv.interviewer}
+                    <Clock className="h-3.5 w-3.5" /> {formatDate(iv.date)} · {iv.time} · <InterviewersText iv={iv} />
                   </span>
                   <span className="flex gap-1">
                     <Button

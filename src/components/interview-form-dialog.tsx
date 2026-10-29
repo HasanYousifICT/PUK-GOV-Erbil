@@ -17,6 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { SearchableSelect } from "@/components/searchable-select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { MAX_INTERVIEWERS, parseIds } from "@/lib/interview-rules";
 import { Application, Interview, apiClient } from "@/lib/client";
 import { INTERVIEW_STATUSES } from "@/lib/constants";
 
@@ -37,7 +40,15 @@ export function InterviewFormDialog({
   const { t } = useI18n();
   const [applications, setApplications] = useState<Application[]>([]);
   const [applicationId, setApplicationId] = useState("");
-  const [interviewer, setInterviewer] = useState("");
+  const [people, setPeople] = useState<{ id: string; name: string; title: string }[]>([]);
+  const [ids, setIds] = useState<string[]>([]);
+  const [idsTouched, setIdsTouched] = useState(false);
+  const [requireAll, setRequireAll] = useState(true);
+  const [doneIds, setDoneIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (open) apiClient.listInterviewers().then(setPeople).catch(() => setPeople([]));
+  }, [open]);
+  const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? id;
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [status, setStatus] = useState("Scheduled");
@@ -73,7 +84,10 @@ export function InterviewFormDialog({
       setError(null);
       setAppSearch("");
       setApplicationId(interview?.applicationId ?? presetApplicationId ?? "");
-      setInterviewer(interview?.interviewer ?? "");
+      setIds(parseIds(interview?.interviewerIds));
+      setIdsTouched(false);
+      setRequireAll(interview?.requireAll ?? true);
+      setDoneIds(parseIds(interview?.doneIds));
       setDate(interview?.date ?? "");
       setTime(interview?.time ?? "");
       setStatus(interview?.status ?? "Scheduled");
@@ -88,8 +102,9 @@ export function InterviewFormDialog({
       setError("Please select the application (candidate & job)");
       return;
     }
-    if (!interviewer.trim()) {
-      setError("Interviewer name is required");
+    const legacy = !!interview && parseIds(interview.interviewerIds).length === 0 && !idsTouched;
+    if (!legacy && ids.length === 0) {
+      setError("Choose at least one interviewer");
       return;
     }
     if (!date || !time) {
@@ -99,10 +114,16 @@ export function InterviewFormDialog({
     setBusy(true);
     try {
       if (interview) {
-        await apiClient.updateInterview(interview.id, { interviewer, date, time, status, feedback });
+        await apiClient.updateInterview(interview.id, {
+          ...(legacy ? {} : { interviewerIds: ids, requireAll, doneIds }),
+          date,
+          time,
+          status,
+          feedback,
+        });
         toast.success("Interview updated");
       } else {
-        await apiClient.createInterview({ applicationId, interviewer, date, time, feedback });
+        await apiClient.createInterview({ applicationId, interviewerIds: ids, requireAll, date, time, feedback });
         toast.success("Interview scheduled");
       }
       onOpenChange(false);
@@ -172,15 +193,78 @@ export function InterviewFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="iv-interviewer">{t("Interviewer *")}</Label>
-            <Input
-              id="iv-interviewer"
-              placeholder={t("e.g. Priya Menon")}
-              value={interviewer}
-              onChange={(e) => setInterviewer(e.target.value)}
-              required
-            />
+            <Label>{t("Interviewers *")}</Label>
+            {interview && parseIds(interview.interviewerIds).length === 0 && !idsTouched && (
+              <p className="text-xs text-muted-foreground">{interview.interviewer}</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {ids.map((id) => (
+                <span key={id} className="inline-flex items-center gap-1 rounded-full border bg-muted/40 py-1 ps-3 pe-1 text-sm">
+                  {nameOf(id)}
+                  <button
+                    type="button"
+                    aria-label={t("Remove")}
+                    className="rounded-full px-2 text-muted-foreground hover:bg-muted"
+                    onClick={() => {
+                      setIds((l) => l.filter((x) => x !== id));
+                      setDoneIds((l) => l.filter((x) => x !== id));
+                      setIdsTouched(true);
+                    }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            {ids.length < MAX_INTERVIEWERS && (
+              <SearchableSelect
+                value={undefined}
+                ariaLabel={t("Add an interviewer")}
+                placeholder={ids.length ? t("Add another interviewer") : t("Select an interviewer")}
+                options={people.filter((p) => !ids.includes(p.id)).map((p) => ({ value: p.id, label: p.title ? `${p.name} — ${p.title}` : p.name }))}
+                onChange={(v) => {
+                  if (v) {
+                    setIds((l) => [...l, v]);
+                    setIdsTouched(true);
+                  }
+                }}
+              />
+            )}
+            {people.length === 0 && <p className="text-xs text-muted-foreground">{t("No user has interview access yet.")}</p>}
           </div>
+
+          {ids.length > 1 && (
+            <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+              <Label>{t("Who must interview the candidate?")}</Label>
+              <Select value={requireAll ? "all" : "one"} onValueChange={(v) => setRequireAll(v === "all")}>
+                <SelectTrigger aria-label={t("Who must interview the candidate?")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("Both / all of them must interview")}</SelectItem>
+                  <SelectItem value="one">{t("One of them is enough")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {interview && ids.length > 0 && (
+            <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+              <Label>{t("Interviewed")}</Label>
+              {ids.map((id) => (
+                <label key={id} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={doneIds.includes(id)}
+                    onCheckedChange={(c) => setDoneIds((l) => (c ? [...new Set([...l, id])] : l.filter((x) => x !== id)))}
+                  />
+                  {nameOf(id)}
+                </label>
+              ))}
+              <p className="text-xs text-muted-foreground">
+                {t("The interview becomes Completed when the required interviewers are ticked.")}
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>{t("Status")}</Label>
