@@ -1,3 +1,4 @@
+import { canDo } from "@/lib/interview-actions";
 import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import { applicationFacts } from "@/lib/notify-server";
 import { cleanEvaluation, resolveInterviewers, statusFor } from "@/lib/interview-server";
@@ -25,8 +26,20 @@ export async function PUT(req: Request, { params }: Params) {
     const user = await requireLevel(req, "interviews", "edit");
     const { id } = await params;
     const body = await readJson<Record<string, unknown>>(req);
+
     const existing = await db.interview.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Interview not found");
+    // scheduling = changing who/when/status; giving feedback = evaluations or the feedback text. Unchanged values do not count.
+    const differs = (k: string, cur: unknown) => k in body && JSON.stringify(body[k]) !== JSON.stringify(cur);
+    const scheduling =
+      differs("date", existing.date) ||
+      differs("time", existing.time) ||
+      differs("status", existing.status) ||
+      differs("requireAll", existing.requireAll) ||
+      differs("interviewerIds", parseIds(existing.interviewerIds));
+    const giving = (body.evaluations && typeof body.evaluations === "object" && Object.keys(body.evaluations as object).length > 0) || differs("feedback", existing.feedback);
+    if (scheduling && !canDo(user.interviewActions, user.role, "schedule")) throw new ApiError(403, "You are not allowed to schedule interviews");
+    if (giving && !canDo(user.interviewActions, user.role, "feedback")) throw new ApiError(403, "You are not allowed to give interview feedback");
 
     const data: Record<string, string | boolean> = {};
     let ids = parseIds(existing.interviewerIds);
@@ -116,7 +129,8 @@ export async function PUT(req: Request, { params }: Params) {
 /** DELETE /api/interviews/:id */
 export async function DELETE(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireLevel(req, "interviews", "edit");
+    const me = await requireLevel(req, "interviews", "edit");
+    if (!canDo(me.interviewActions, me.role, "schedule")) throw new ApiError(403, "You are not allowed to schedule interviews");
     const { id } = await params;
     const existing = await db.interview.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Interview not found");

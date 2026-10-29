@@ -43,7 +43,7 @@ import { NavState } from "@/components/app-shell";
 import { InterviewFormDialog } from "@/components/interview-form-dialog";
 
 import { useI18n } from "@/lib/i18n";
-import { useCan } from "@/lib/permissions-context";
+import { useCan, useCanInterview } from "@/lib/permissions-context";
 type Filter = "all" | "Scheduled" | "Completed" | "Cancelled";
 
 function InterviewersText({ iv }: { iv: Interview }) {
@@ -64,6 +64,7 @@ function InterviewersText({ iv }: { iv: Interview }) {
 export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) => void }) {
   const { t } = useI18n();
   const canEdit = useCan("interviews", "edit");
+  const canSchedule = useCanInterview("schedule");
   const [interviews, setInterviews] = useState<Interview[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
@@ -129,7 +130,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
         title={t("Interviews")}
         description={t("Schedule, track and capture feedback for candidate interviews.")}
         action={
-          !canEdit ? undefined : <Button
+          !canEdit || !canSchedule ? undefined : <Button
             onClick={() => {
               setEditing(null);
               setFormOpen(true);
@@ -273,25 +274,29 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                           >
                             <Pencil className="me-2 h-4 w-4" /> {t("Edit")}
                           </DropdownMenuItem>
-                          {iv.status !== "Completed" && parseIds(iv.interviewerIds).length === 0 && (
+                          {canSchedule && iv.status !== "Completed" && parseIds(iv.interviewerIds).length === 0 && (
                             <DropdownMenuItem onClick={() => setStatus(iv, "Completed")}>
                               <CheckCircle2 className="me-2 h-4 w-4" /> {t("Mark completed")}
                             </DropdownMenuItem>
                           )}
-                          {iv.status !== "Cancelled" && iv.status !== "Completed" && (
+                          {canSchedule && iv.status !== "Cancelled" && iv.status !== "Completed" && (
                             <DropdownMenuItem onClick={() => setStatus(iv, "Cancelled")}>
                               <XCircle className="me-2 h-4 w-4" /> {t("Cancel interview")}
                             </DropdownMenuItem>
                           )}
-                          {iv.status === "Cancelled" && (
+                          {canSchedule && iv.status === "Cancelled" && (
                             <DropdownMenuItem onClick={() => setStatus(iv, "Scheduled")}>
                               <CalendarDays className="me-2 h-4 w-4" /> {t("Reschedule (mark scheduled)")}
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleting(iv)}>
-                            <Trash2 className="me-2 h-4 w-4" /> {t("Delete")}
-                          </DropdownMenuItem>
+                          {canSchedule && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleting(iv)}>
+                                <Trash2 className="me-2 h-4 w-4" /> {t("Delete")}
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </td>
@@ -332,7 +337,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    {iv.status === "Scheduled" && (
+                    {canSchedule && iv.status === "Scheduled" && (
                       <>
                         {parseIds(iv.interviewerIds).length === 0 && (
                         <Button
@@ -356,7 +361,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                         </Button>
                       </>
                     )}
-                    <Button
+                    {canSchedule && <Button
                       variant="ghost"
                       size="sm"
                       className="h-7 px-2 text-red-600"
@@ -364,7 +369,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                       onClick={() => setDeleting(iv)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    </Button>}
                   </span>
                 </div>
                 {iv.feedback && (

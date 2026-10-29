@@ -1,3 +1,4 @@
+import { parseActions } from "@/lib/interview-actions";
 import { parseMoves } from "@/lib/stage-moves";
 import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import { db } from "@/lib/db";
@@ -31,6 +32,7 @@ export async function PUT(req: Request, { params }: Params) {
       title?: string;
       permissions?: string;
       stageMoves?: string;
+      interviewActions?: string;
       active?: boolean;
     } = {};
     if ("name" in body) {
@@ -64,6 +66,9 @@ export async function PUT(req: Request, { params }: Params) {
     if ("stageMoves" in body || nextRole !== existing.role) {
       data.stageMoves = nextRole === "admin" || body.stageMoves === null || body.stageMoves === undefined ? "" : JSON.stringify(parseMoves(body.stageMoves) ?? []);
     }
+    if ("interviewActions" in body || nextRole !== existing.role) {
+      data.interviewActions = nextRole === "admin" || body.interviewActions === null || body.interviewActions === undefined ? "" : JSON.stringify(parseActions(body.interviewActions) ?? []);
+    }
     if ("active" in body) {
       const active = body.active !== false;
       if (!active) {
@@ -81,7 +86,7 @@ export async function PUT(req: Request, { params }: Params) {
     const updated = await db.user.update({ where: { id }, data, select: userSelect });
     if (id !== me.id) {
       if (data.password) await notifyUsers([id], "pw_reset", {});
-      if (data.role !== undefined || data.permissions !== undefined || data.stageMoves !== undefined) await notifyUsers([id], "perm_changed", {});
+      if (data.role !== undefined || data.permissions !== undefined || data.stageMoves !== undefined || data.interviewActions !== undefined) await notifyUsers([id], "perm_changed", {});
       if (data.active === false) await notifyUsers([id], "acct_disabled", {});
       if (data.name !== undefined || data.title !== undefined || data.phone !== undefined) await notifyUsers([id], "profile_changed", {});
     }

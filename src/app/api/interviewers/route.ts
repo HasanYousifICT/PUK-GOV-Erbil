@@ -1,3 +1,4 @@
+import { canDo, parseActions } from "@/lib/interview-actions";
 import { db } from "@/lib/db";
 import { handle, json, requireLevel } from "@/lib/api";
 import { resolvePermissions } from "@/lib/permissions";
@@ -8,12 +9,12 @@ export async function GET(req: Request) {
     await requireLevel(req, "interviews", "view");
     const users = await db.user.findMany({
       where: { active: true },
-      select: { id: true, name: true, title: true, role: true, permissions: true },
+      select: { id: true, name: true, title: true, role: true, permissions: true, interviewActions: true },
       orderBy: { name: "asc" },
     });
     return json(
       users
-        .filter((u) => resolvePermissions(u.role, u.permissions).interviews === "edit")
+        .filter((u) => resolvePermissions(u.role, u.permissions).interviews === "edit" && canDo(parseActions(u.interviewActions), u.role, "feedback"))
         .map((u) => ({ id: u.id, name: u.name, title: u.title }))
     );
   });

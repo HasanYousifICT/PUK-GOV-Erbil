@@ -1,3 +1,4 @@
+import { parseActions } from "@/lib/interview-actions";
 // OpenRecruitOS — Authentication (JWT session cookie + bcrypt password hashing)
 // Kept intentionally simple for the Community Edition.
 // Future commercial versions (SSO/SAML/SCIM) can replace this module behind the same interface.
@@ -35,9 +36,11 @@ export type SessionUser = {
   permissions: Permissions;
   /** pipeline moves this user may make (null = all) */
   stageMoves: string[] | null;
+  /** what this user may do with interviews: "schedule", "feedback" (null = both) */
+  interviewActions: string[] | null;
 };
 
-type UserRow = { id: string; name: string; email: string; role: string; phone: string | null; title: string; permissions: string; stageMoves?: string };
+type UserRow = { id: string; name: string; email: string; role: string; phone: string | null; title: string; permissions: string; stageMoves?: string; interviewActions?: string };
 
 /** The user as the app sees it (role + resolved permissions). */
 export function toSessionUser(u: UserRow): SessionUser {
@@ -51,10 +54,11 @@ export function toSessionUser(u: UserRow): SessionUser {
     title: u.title,
     permissions: resolvePermissions(role, u.permissions),
     stageMoves: role === "admin" ? null : parseMoves(u.stageMoves),
+    interviewActions: role === "admin" ? null : parseActions(u.interviewActions),
   };
 }
 
-export const SESSION_SELECT = { id: true, name: true, email: true, role: true, phone: true, title: true, permissions: true, stageMoves: true } as const;
+export const SESSION_SELECT = { id: true, name: true, email: true, role: true, phone: true, title: true, permissions: true, stageMoves: true, interviewActions: true } as const;
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);

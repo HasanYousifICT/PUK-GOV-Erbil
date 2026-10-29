@@ -29,6 +29,7 @@ import { ConfirmDialog, ErrorState, formatDate, TableSkeleton } from "@/componen
 import { apiClient, ManagedUser, SessionUser } from "@/lib/client";
 import { useI18n } from "@/lib/i18n";
 import { useOrg } from "@/lib/org-context";
+import { INTERVIEW_ACTIONS } from "@/lib/interview-actions";
 import { ALL_MOVE_KEYS, BACK_KEY, REJECT_KEY } from "@/lib/stage-moves";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AREAS, AREA_INFO, Area, Level, Permissions, presetByKey, presetKeyFor, ROLE_PRESETS } from "@/lib/permissions";
@@ -208,6 +209,7 @@ function UserDialog({
   const [perms, setPerms] = useState<Permissions>(EMPTY_PERMS);
   const [active, setActive] = useState(true);
   const [moves, setMoves] = useState<string[]>(ALL_MOVE_KEYS);
+  const [ivActions, setIvActions] = useState<string[]>([...INTERVIEW_ACTIONS]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -228,6 +230,7 @@ function UserDialog({
       setPerms(u.permissions);
       setActive(u.active);
       setMoves(u.stageMoves ?? ALL_MOVE_KEYS);
+      setIvActions(u.interviewActions ?? [...INTERVIEW_ACTIONS]);
     } else {
       setName("");
       setEmail("");
@@ -237,6 +240,7 @@ function UserDialog({
       setPerms({ ...ROLE_PRESETS[1].permissions });
       setActive(true);
       setMoves(ALL_MOVE_KEYS);
+      setIvActions([...INTERVIEW_ACTIONS]);
     }
   }, [editing]);
 
@@ -259,12 +263,13 @@ function UserDialog({
     const role = isAdminRole ? "admin" : "recruiter";
     // null = every move; only stored as a list when some moves are switched off
     const stageMoves = isAdminRole || perms.applications !== "edit" || ALL_MOVE_KEYS.every((k) => moves.includes(k)) ? null : moves;
+    const interviewActions = isAdminRole || perms.interviews !== "edit" || INTERVIEW_ACTIONS.every((k) => ivActions.includes(k)) ? null : ivActions;
     try {
       if (editing.mode === "add") {
-        await apiClient.createUser({ name, email, phone, title, password, role, permissions: perms, stageMoves });
+        await apiClient.createUser({ name, email, phone, title, password, role, permissions: perms, stageMoves, interviewActions });
         toast.success("User added");
       } else {
-        await apiClient.updateUser(editing.user.id, { name, phone, title, role, permissions: perms, stageMoves, active });
+        await apiClient.updateUser(editing.user.id, { name, phone, title, role, permissions: perms, stageMoves, interviewActions, active });
         toast.success("User updated");
       }
       onSaved();
@@ -375,6 +380,28 @@ function UserDialog({
                   </li>
                 ))}
               </ul>
+            )}
+            {!isAdminRole && perms.interviews === "edit" && (
+              <div className="space-y-2 rounded-lg border bg-card p-3">
+                <div>
+                  <p className="text-sm font-medium">{t("What this user can do with interviews")}</p>
+                  <p className="text-xs text-muted-foreground">{t("Schedule interviews, give feedback, or both.")}</p>
+                </div>
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  {INTERVIEW_ACTIONS.map((k) => (
+                    <label key={k} className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm">
+                      <Checkbox
+                        checked={ivActions.includes(k)}
+                        onCheckedChange={(c) => setIvActions((l) => (c ? [...new Set([...l, k])] : l.filter((x) => x !== k)))}
+                      />
+                      {k === "schedule" ? t("Schedule interviews (create, change, cancel, delete)") : t("Give feedback and evaluations")}
+                    </label>
+                  ))}
+                </div>
+                {!ivActions.includes("feedback") && (
+                  <p className="text-xs text-muted-foreground">{t("Without feedback access this user cannot be chosen as an interviewer.")}</p>
+                )}
+              </div>
             )}
             {!isAdminRole && perms.applications === "edit" && (
               <div className="space-y-2 rounded-lg border bg-card p-3">

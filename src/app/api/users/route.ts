@@ -1,3 +1,4 @@
+import { parseActions } from "@/lib/interview-actions";
 import { parseMoves } from "@/lib/stage-moves";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
@@ -15,12 +16,13 @@ export const userSelect = {
   title: true,
   permissions: true,
   stageMoves: true,
+  interviewActions: true,
   active: true,
   lastLoginAt: true,
   createdAt: true,
 } as const;
 
-type UserRow = { id: string; name: string; email: string; role: string; phone: string | null; title: string; permissions: string; stageMoves?: string; active: boolean; lastLoginAt: Date | null; createdAt: Date };
+type UserRow = { id: string; name: string; email: string; role: string; phone: string | null; title: string; permissions: string; stageMoves?: string; interviewActions?: string; active: boolean; lastLoginAt: Date | null; createdAt: Date };
 
 /** What the screen receives: resolved permissions instead of the stored JSON. */
 export function toManaged(u: UserRow) {
@@ -34,6 +36,7 @@ export function toManaged(u: UserRow) {
     title: u.title,
     permissions: resolvePermissions(role, u.permissions),
     stageMoves: role === "admin" ? null : parseMoves(u.stageMoves),
+    interviewActions: role === "admin" ? null : parseActions(u.interviewActions),
     active: u.active,
     lastLoginAt: u.lastLoginAt,
     createdAt: u.createdAt,
@@ -95,6 +98,7 @@ export async function POST(req: Request) {
         phoneKey: phoneKey(rawPhone),
         permissions: JSON.stringify(permissions),
         stageMoves: role === "admin" || body.stageMoves === undefined || body.stageMoves === null ? "" : JSON.stringify(parseMoves(body.stageMoves) ?? []),
+        interviewActions: role === "admin" || body.interviewActions === undefined || body.interviewActions === null ? "" : JSON.stringify(parseActions(body.interviewActions) ?? []),
         password: await hashPassword(password),
       },
       select: userSelect,

@@ -25,3 +25,15 @@ export function StageMovesProvider({ value, children }: { value: (from: string, 
 export function useCanMove(): (from: string, to: string) => boolean {
   return useContext(MovesCtx) ?? (() => true);
 }
+
+const ActionsCtx = createContext<((action: "schedule" | "feedback") => boolean) | null>(null);
+
+export function InterviewActionsProvider({ value, children }: { value: (action: "schedule" | "feedback") => boolean; children: ReactNode }) {
+  return <ActionsCtx.Provider value={value}>{children}</ActionsCtx.Provider>;
+}
+
+/** Whether the signed-in user may schedule interviews / give interview feedback. */
+export function useCanInterview(action: "schedule" | "feedback"): boolean {
+  const f = useContext(ActionsCtx);
+  return f ? f(action) : true;
+}

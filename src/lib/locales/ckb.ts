@@ -1092,4 +1092,11 @@ export const ckb: Record<string, string> = {
   "Move back a stage / restore rejected": "گەڕانەوە بۆ قۆناغێکی پێشوو / گەڕاندنەوەی ڕەتکراو",
   "{from} → {to}": "{from} ← {to}",
   "You are not allowed to make this move in the pipeline": "ڕێگەپێدراو نیت ئەم گواستنەوەیە لە پایپلاین بکەیت",
+  "What this user can do with interviews": "ئەم بەکارهێنەرە چی دەتوانێت بکات لە چاوپێکەوتنەکان",
+  "Schedule interviews, give feedback, or both.": "کاتدانان بۆ چاوپێکەوتن، تێبینی دان، یان هەردووکیان.",
+  "Schedule interviews (create, change, cancel, delete)": "کاتدانانی چاوپێکەوتن (دروستکردن، گۆڕین، هەڵوەشاندنەوە، سڕینەوە)",
+  "Give feedback and evaluations": "دانی تێبینی و هەڵسەنگاندن",
+  "Without feedback access this user cannot be chosen as an interviewer.": "بەبێ دەستگەیشتن بە تێبینی ئەم بەکارهێنەرە ناتوانرێت وەک چاوپێکەوتنکەر هەڵبژێردرێت.",
+  "You are not allowed to schedule interviews": "ڕێگەپێدراو نیت چاوپێکەوتن کات بدەیت",
+  "You are not allowed to give interview feedback": "ڕێگەپێدراو نیت تێبینی چاوپێکەوتن بدەیت",
 };

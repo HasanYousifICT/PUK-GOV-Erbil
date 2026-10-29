@@ -24,6 +24,7 @@ import { Application, Interview, apiClient } from "@/lib/client";
 import { INTERVIEW_STATUSES } from "@/lib/constants";
 
 import { useI18n } from "@/lib/i18n";
+import { useCanInterview } from "@/lib/permissions-context";
 export function InterviewFormDialog({
   open,
   onOpenChange,
@@ -38,6 +39,8 @@ export function InterviewFormDialog({
   onSaved: () => void;
 }) {
   const { t } = useI18n();
+  const canSchedule = useCanInterview("schedule") || !interview;
+  const canFeedback = useCanInterview("feedback");
   const [applications, setApplications] = useState<Application[]>([]);
   const [applicationId, setApplicationId] = useState("");
   const [people, setPeople] = useState<{ id: string; name: string; title: string }[]>([]);
@@ -139,11 +142,10 @@ export function InterviewFormDialog({
     try {
       if (interview) {
         await apiClient.updateInterview(interview.id, {
-          ...(legacy ? {} : { interviewerIds: ids, requireAll, evaluations: evalPayload }),
-          date,
-          time,
-          ...(status === "Completed" && !legacy ? {} : { status }),
-          feedback,
+          ...(canSchedule
+            ? { ...(legacy ? {} : { interviewerIds: ids, requireAll }), date, time, ...(status === "Completed" && !legacy ? {} : { status }) }
+            : {}),
+          ...(canFeedback ? { ...(legacy ? {} : { evaluations: evalPayload }), feedback } : {}),
         });
         toast.success("Interview updated");
       } else {
@@ -208,11 +210,11 @@ export function InterviewFormDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="iv-date">{t("Date *")}</Label>
-              <Input id="iv-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+              <Input id="iv-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required disabled={!canSchedule} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="iv-time">{t("Time *")}</Label>
-              <Input id="iv-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
+              <Input id="iv-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} required disabled={!canSchedule} />
             </div>
           </div>
 
@@ -227,6 +229,7 @@ export function InterviewFormDialog({
                   {nameOf(id)}
                   <button
                     type="button"
+                    disabled={!canSchedule}
                     aria-label={t("Remove")}
                     className="rounded-full px-2 text-muted-foreground hover:bg-muted"
                     onClick={() => {
@@ -239,7 +242,7 @@ export function InterviewFormDialog({
                 </span>
               ))}
             </div>
-            {ids.length < MAX_INTERVIEWERS && (
+            {canSchedule && ids.length < MAX_INTERVIEWERS && (
               <SearchableSelect
                 value={undefined}
                 ariaLabel={t("Add an interviewer")}
@@ -259,7 +262,7 @@ export function InterviewFormDialog({
           {ids.length > 1 && (
             <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
               <Label>{t("Who must interview the candidate?")}</Label>
-              <Select value={requireAll ? "all" : "one"} onValueChange={(v) => setRequireAll(v === "all")}>
+              <Select value={requireAll ? "all" : "one"} onValueChange={(v) => setRequireAll(v === "all")} disabled={!canSchedule}>
                 <SelectTrigger aria-label={t("Who must interview the candidate?")}>
                   <SelectValue />
                 </SelectTrigger>
@@ -283,7 +286,7 @@ export function InterviewFormDialog({
               </div>
               {ids.map((id) => {
                 const e: Ev = evals[id] ?? { comment: "", suitable: "", rating: "" };
-                const mine = canWrite(id);
+                const mine = canWrite(id) && canFeedback;
                 const setE = (patch: Partial<Ev>) => setEvals((m) => ({ ...m, [id]: { ...e, ...patch } }));
                 return (
                   <div key={id} className="space-y-2 rounded-md border bg-background p-3">
@@ -344,7 +347,7 @@ export function InterviewFormDialog({
 
           <div className="space-y-2">
             <Label>{t("Status")}</Label>
-            <Select value={status} onValueChange={setStatus}>
+            <Select value={status} onValueChange={setStatus} disabled={!canSchedule}>
               <SelectTrigger aria-label={t("Interview status")}>
                 <SelectValue />
               </SelectTrigger>
@@ -362,6 +365,7 @@ export function InterviewFormDialog({
             <Label htmlFor="iv-feedback">{t("Feedback / Comments")}</Label>
             <Textarea
               id="iv-feedback"
+              disabled={!canFeedback}
               rows={3}
               placeholder={t("Interview feedback, impressions, follow-ups…")}
               value={feedback}

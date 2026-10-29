@@ -79,7 +79,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { useI18n } from "@/lib/i18n";
-import { useCan, useCanMove } from "@/lib/permissions-context";
+import { useCan, useCanInterview, useCanMove } from "@/lib/permissions-context";
 /* --------------------------------- card --------------------------------- */
 
 function ApplicationCard({
@@ -101,6 +101,7 @@ function ApplicationCard({
 }) {
   const { t } = useI18n();
   const canMoveStage = useCanMove();
+  const canScheduleIv = useCanInterview("schedule");
   return (
     <div
       className={cn(
@@ -137,9 +138,11 @@ function ApplicationCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem onClick={onView}>{t("View details")}</DropdownMenuItem>
-              <DropdownMenuItem onClick={onSchedule}>
-                <CalendarDays className="me-2 h-4 w-4" /> {t("Schedule interview")}
-              </DropdownMenuItem>
+              {canScheduleIv && (
+                <DropdownMenuItem onClick={onSchedule}>
+                  <CalendarDays className="me-2 h-4 w-4" /> {t("Schedule interview")}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
@@ -310,6 +313,7 @@ function ApplicationDetailDialog({
 }) {
   const { t } = useI18n();
   const canMoveStage = useCanMove();
+  const canScheduleIv = useCanInterview("schedule");
   const [removing, setRemoving] = useState(false);
   const [removeBusy, setRemoveBusy] = useState(false);
 
@@ -403,9 +407,11 @@ function ApplicationDetailDialog({
               </Select>
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
-              <Button size="sm" onClick={() => onScheduleInterview(app)}>
-                <CalendarDays className="me-1.5 h-3.5 w-3.5" /> {t("Schedule interview")}
-              </Button>
+              {canScheduleIv && (
+                <Button size="sm" onClick={() => onScheduleInterview(app)}>
+                  <CalendarDays className="me-1.5 h-3.5 w-3.5" /> {t("Schedule interview")}
+                </Button>
+              )}
             </div>
           </div>
         </div>

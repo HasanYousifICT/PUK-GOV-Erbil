@@ -20,7 +20,8 @@ import { apiClient, SessionUser } from "@/lib/client";
 import { Area, can } from "@/lib/permissions";
 import { NotificationBell, staffBell } from "@/components/notification-bell";
 import { canMove } from "@/lib/stage-moves";
-import { StageMovesProvider } from "@/lib/permissions-context";
+import { canDo } from "@/lib/interview-actions";
+import { InterviewActionsProvider, StageMovesProvider } from "@/lib/permissions-context";
 import { PermissionsProvider } from "@/lib/permissions-context";
 import { useOrg } from "@/lib/org-context";
 import { cn } from "@/lib/utils";
@@ -212,6 +213,7 @@ export function AppShell({
   return (
     <PermissionsProvider value={user.permissions}>
     <StageMovesProvider value={(from, to) => canMove(user.stageMoves, user.role, from, to)}>
+    <InterviewActionsProvider value={(a) => canDo(user.interviewActions, user.role, a)}>
     <div className="min-h-screen bg-background">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 start-0 z-30 hidden w-64 border-e border-sidebar-border bg-sidebar lg:block">
@@ -318,6 +320,7 @@ export function AppShell({
         busy={logoutBusy}
       />
     </div>
+    </InterviewActionsProvider>
     </StageMovesProvider>
     </PermissionsProvider>
   );

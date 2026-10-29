@@ -33,9 +33,13 @@ export async function usersWith(area: Area): Promise<string[]> {
 
 /** Application → the facts every message needs. */
 export async function applicationFacts(applicationId: string) {
-  const a = await db.application.findUnique({
-    where: { id: applicationId },
-    select: { id: true, candidateId: true, candidate: { select: { name: true } }, job: { select: { title: true } } },
-  });
-  return a ? { applicationId: a.id, candidateId: a.candidateId, candidate: a.candidate.name, job: a.job.title } : null;
+  try {
+    const a = await db.application.findUnique({
+      where: { id: applicationId },
+      select: { id: true, candidateId: true, candidate: { select: { name: true } }, job: { select: { title: true } } },
+    });
+    return a ? { applicationId: a.id, candidateId: a.candidateId, candidate: a.candidate.name, job: a.job.title } : null;
+  } catch {
+    return null;
+  }
 }

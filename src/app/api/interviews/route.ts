@@ -1,3 +1,4 @@
+import { canDo } from "@/lib/interview-actions";
 import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import { applicationFacts } from "@/lib/notify-server";
 import { jobWhereFromParams } from "@/lib/job-filter-server";
@@ -46,7 +47,8 @@ export async function GET(req: Request) {
 /** POST /api/interviews — schedule an interview for an application */
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireLevel(req, "interviews", "edit");
+    const me = await requireLevel(req, "interviews", "edit");
+    if (!canDo(me.interviewActions, me.role, "schedule")) throw new ApiError(403, "You are not allowed to schedule interviews");
     const body = await readJson<Record<string, unknown>>(req);
     const applicationId = str(body.applicationId);
     const people = await resolveInterviewers(body.interviewerIds);
