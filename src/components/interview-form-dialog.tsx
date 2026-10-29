@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { SearchableSelect } from "@/components/searchable-select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MAX_INTERVIEWERS, parseIds } from "@/lib/interview-rules";
+import { MAX_INTERVIEWERS, parseEvaluations, parseIds } from "@/lib/interview-rules";
 import { Application, Interview, apiClient } from "@/lib/client";
 import { INTERVIEW_STATUSES } from "@/lib/constants";
 
@@ -44,7 +44,13 @@ export function InterviewFormDialog({
   const [ids, setIds] = useState<string[]>([]);
   const [idsTouched, setIdsTouched] = useState(false);
   const [requireAll, setRequireAll] = useState(true);
-  const [doneIds, setDoneIds] = useState<string[]>([]);
+  type Ev = { comment: string; suitable: "" | "yes" | "no"; rating: string };
+  const [evals, setEvals] = useState<Record<string, Ev>>({});
+  const [me, setMe] = useState<{ id: string; role: string } | null>(null);
+  useEffect(() => {
+    if (open) apiClient.me().then((u) => setMe({ id: u.id, role: u.role })).catch(() => setMe(null));
+  }, [open]);
+  const canWrite = (id: string) => !!me && (me.role === "admin" || me.id === id);
   useEffect(() => {
     if (open) apiClient.listInterviewers().then(setPeople).catch(() => setPeople([]));
   }, [open]);
@@ -87,7 +93,12 @@ export function InterviewFormDialog({
       setIds(parseIds(interview?.interviewerIds));
       setIdsTouched(false);
       setRequireAll(interview?.requireAll ?? true);
-      setDoneIds(parseIds(interview?.doneIds));
+      const stored = parseEvaluations(interview?.evaluations);
+      setEvals(
+        Object.fromEntries(
+          Object.entries(stored).map(([k, e]) => [k, { comment: e.comment, suitable: e.suitable ? "yes" : "no", rating: e.rating ? String(e.rating) : "" } as Ev])
+        )
+      );
       setDate(interview?.date ?? "");
       setTime(interview?.time ?? "");
       setStatus(interview?.status ?? "Scheduled");
@@ -111,14 +122,27 @@ export function InterviewFormDialog({
       setError("Date and time are required");
       return;
     }
+    // evaluations written by the signed-in interviewer (or any, for an administrator)
+    const evalPayload: Record<string, { comment: string; suitable: boolean; rating: number | null }> = {};
+    if (interview && !legacy) {
+      for (const id of ids) {
+        const e = evals[id];
+        if (!e || !e.suitable || !canWrite(id)) continue;
+        if (e.suitable === "yes" && !e.rating) {
+          setError("Give a rating from 1 to 10");
+          return;
+        }
+        evalPayload[id] = { comment: e.comment, suitable: e.suitable === "yes", rating: e.suitable === "yes" ? Number(e.rating) : null };
+      }
+    }
     setBusy(true);
     try {
       if (interview) {
         await apiClient.updateInterview(interview.id, {
-          ...(legacy ? {} : { interviewerIds: ids, requireAll, doneIds }),
+          ...(legacy ? {} : { interviewerIds: ids, requireAll, evaluations: evalPayload }),
           date,
           time,
-          status,
+          ...(status === "Completed" && !legacy ? {} : { status }),
           feedback,
         });
         toast.success("Interview updated");
@@ -207,8 +231,7 @@ export function InterviewFormDialog({
                     className="rounded-full px-2 text-muted-foreground hover:bg-muted"
                     onClick={() => {
                       setIds((l) => l.filter((x) => x !== id));
-                      setDoneIds((l) => l.filter((x) => x !== id));
-                      setIdsTouched(true);
+                                      setIdsTouched(true);
                     }}
                   >
                     ×
@@ -249,20 +272,73 @@ export function InterviewFormDialog({
           )}
 
           {interview && ids.length > 0 && (
-            <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-              <Label>{t("Interviewed")}</Label>
-              {ids.map((id) => (
-                <label key={id} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={doneIds.includes(id)}
-                    onCheckedChange={(c) => setDoneIds((l) => (c ? [...new Set([...l, id])] : l.filter((x) => x !== id)))}
-                  />
-                  {nameOf(id)}
-                </label>
-              ))}
-              <p className="text-xs text-muted-foreground">
-                {t("The interview becomes Completed when the required interviewers are ticked.")}
-              </p>
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+              <div>
+                <Label>{t("Interviewer evaluations")}</Label>
+                <p className="text-xs text-muted-foreground">
+                  {ids.length > 1 && !requireAll
+                    ? t("The interview becomes Completed automatically when one interviewer submits.")
+                    : t("The interview becomes Completed automatically when all required interviewers submit.")}
+                </p>
+              </div>
+              {ids.map((id) => {
+                const e: Ev = evals[id] ?? { comment: "", suitable: "", rating: "" };
+                const mine = canWrite(id);
+                const setE = (patch: Partial<Ev>) => setEvals((m) => ({ ...m, [id]: { ...e, ...patch } }));
+                return (
+                  <div key={id} className="space-y-2 rounded-md border bg-background p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{nameOf(id)}</span>
+                      <span className={`text-xs ${e.suitable ? "text-emerald-700" : "text-muted-foreground"}`}>
+                        {e.suitable ? t("Submitted") : t("Waiting")}
+                      </span>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t("Is the candidate suitable?")}</Label>
+                        <Select
+                          disabled={!mine}
+                          value={e.suitable || undefined}
+                          onValueChange={(v) => setE({ suitable: v as "yes" | "no", rating: v === "no" ? "" : e.rating })}
+                        >
+                          <SelectTrigger aria-label={t("Is the candidate suitable?")}>
+                            <SelectValue placeholder={t("Select")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="yes">{t("Suitable")}</SelectItem>
+                            <SelectItem value="no">{t("Not suitable")}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {e.suitable === "yes" && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">{t("Rating (1–10)")}</Label>
+                          <Select disabled={!mine} value={e.rating || undefined} onValueChange={(v) => setE({ rating: v })}>
+                            <SelectTrigger aria-label={t("Rating (1–10)")}>
+                              <SelectValue placeholder={t("Select")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: 10 }, (_, k) => String(k + 1)).map((n) => (
+                                <SelectItem key={n} value={n}>
+                                  {n}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                    <Textarea
+                      rows={2}
+                      disabled={!mine}
+                      placeholder={t("Comments / feedback")}
+                      value={e.comment}
+                      onChange={(ev) => setE({ comment: ev.target.value })}
+                    />
+                    {!mine && <p className="text-xs text-muted-foreground">{t("Only this interviewer can write this evaluation.")}</p>}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -273,8 +349,8 @@ export function InterviewFormDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {INTERVIEW_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>
+                {INTERVIEW_STATUSES.filter((s) => s !== "Completed" || !interview || parseIds(interview.interviewerIds).length === 0 || interview.status === "Completed").map((s) => (
+                  <SelectItem key={s} value={s} disabled={s === "Completed" && !!interview && parseIds(interview.interviewerIds).length > 0}>
                     {t(s)}
                   </SelectItem>
                 ))}

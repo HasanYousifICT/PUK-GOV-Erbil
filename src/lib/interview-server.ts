@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api";
 import { resolvePermissions } from "@/lib/permissions";
-import { interviewDone, MAX_INTERVIEWERS, parseIds } from "@/lib/interview-rules";
+import { Evaluation, interviewDone, MAX_INTERVIEWERS, parseIds } from "@/lib/interview-rules";
 
 /** Check the chosen interviewer ids are active users with interview access; returns their names joined. */
 export async function resolveInterviewers(input: unknown): Promise<{ ids: string[]; names: string }> {
@@ -18,4 +18,19 @@ export async function resolveInterviewers(input: unknown): Promise<{ ids: string
 export function statusFor(current: string, requireAll: boolean, ids: string[], doneIds: string[]): string {
   if (current === "Cancelled") return current;
   return interviewDone(requireAll, ids, doneIds) ? "Completed" : "Scheduled";
+}
+
+/** One interviewer's evaluation from the request: whether the candidate is suitable, a 1–10 rating when suitable, and a comment. */
+export function cleanEvaluation(input: unknown): Evaluation {
+  if (!input || typeof input !== "object") throw new ApiError(400, "Invalid evaluation");
+  const o = input as Record<string, unknown>;
+  if (typeof o.suitable !== "boolean") throw new ApiError(400, "Choose whether the candidate is suitable");
+  let rating: number | null = null;
+  if (o.suitable) {
+    const n = Number(o.rating);
+    if (!Number.isInteger(n) || n < 1 || n > 10) throw new ApiError(400, "Give a rating from 1 to 10");
+    rating = n;
+  }
+  const comment = typeof o.comment === "string" ? o.comment.trim().slice(0, 2000) : "";
+  return { comment, suitable: o.suitable, rating, at: new Date().toISOString() };
 }

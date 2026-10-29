@@ -19,3 +19,29 @@ export function interviewDone(requireAll: boolean, interviewerIds: string[], don
   if (interviewerIds.length === 0) return false;
   return requireAll ? done.length === interviewerIds.length : done.length >= 1;
 }
+
+export type Evaluation = { comment: string; suitable: boolean; rating: number | null; at: string };
+
+export function parseEvaluations(raw: unknown): Record<string, Evaluation> {
+  let v: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      v = JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, Evaluation> = {};
+  for (const [id, e] of Object.entries(v as Record<string, unknown>)) {
+    if (!e || typeof e !== "object") continue;
+    const o = e as Record<string, unknown>;
+    out[id] = {
+      comment: typeof o.comment === "string" ? o.comment : "",
+      suitable: o.suitable === true,
+      rating: typeof o.rating === "number" ? o.rating : null,
+      at: typeof o.at === "string" ? o.at : "",
+    };
+  }
+  return out;
+}

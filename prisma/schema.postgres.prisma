@@ -149,7 +149,8 @@ model Interview {
   interviewer   String // names, joined with ", "
   interviewerIds String @default("[]") // JSON list of user ids
   requireAll    Boolean  @default(true) // several interviewers: all must interview (true) or one is enough (false)
-  doneIds       String   @default("[]") // JSON list of interviewer user ids who finished
+  doneIds       String   @default("[]") // JSON list of interviewer user ids who submitted their evaluation
+  evaluations   String   @default("{}") // JSON {userId: {comment, suitable, rating, at}}
   date          String // ISO date string yyyy-MM-dd
   time          String // HH:mm
   status        String   @default("Scheduled") // Scheduled | Completed | Cancelled

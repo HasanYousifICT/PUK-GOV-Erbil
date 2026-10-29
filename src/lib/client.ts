@@ -194,6 +194,7 @@ export type Interview = {
   interviewerIds?: string;
   requireAll?: boolean;
   doneIds?: string;
+  evaluations?: string;
   date: string;
   time: string;
   status: "Scheduled" | "Completed" | "Cancelled";
@@ -560,7 +561,7 @@ export const apiClient = {
   createInterview: (data: { applicationId: string; interviewerIds: string[]; requireAll: boolean; date: string; time: string; feedback?: string }) =>
     api<Interview>("/api/interviews", { method: "POST", body: JSON.stringify(data) }),
   listInterviewers: () => api<{ id: string; name: string; title: string }[]>("/api/interviewers"),
-  updateInterview: (id: string, data: Partial<{ interviewerIds: string[]; requireAll: boolean; doneIds: string[]; date: string; time: string; status: string; feedback: string }>) =>
+  updateInterview: (id: string, data: Partial<{ interviewerIds: string[]; requireAll: boolean; evaluations: Record<string, { comment: string; suitable: boolean; rating: number | null } | null>; date: string; time: string; status: string; feedback: string }>) =>
     api<Interview>(`/api/interviews/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteInterview: (id: string) => api<{ ok: boolean }>(`/api/interviews/${id}`, { method: "DELETE" }),
 

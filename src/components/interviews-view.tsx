@@ -272,7 +272,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                           >
                             <Pencil className="me-2 h-4 w-4" /> {t("Edit")}
                           </DropdownMenuItem>
-                          {iv.status !== "Completed" && (
+                          {iv.status !== "Completed" && parseIds(iv.interviewerIds).length === 0 && (
                             <DropdownMenuItem onClick={() => setStatus(iv, "Completed")}>
                               <CheckCircle2 className="me-2 h-4 w-4" /> {t("Mark completed")}
                             </DropdownMenuItem>
@@ -333,6 +333,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                     </Button>
                     {iv.status === "Scheduled" && (
                       <>
+                        {parseIds(iv.interviewerIds).length === 0 && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -342,6 +343,7 @@ export function InterviewsView({ onNavigate }: { onNavigate: (state: NavState) =
                         >
                           <CheckCircle2 className="h-3.5 w-3.5" />
                         </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
