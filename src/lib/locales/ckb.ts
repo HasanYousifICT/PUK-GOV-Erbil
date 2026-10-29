@@ -1086,4 +1086,10 @@ export const ckb: Record<string, string> = {
   "{candidate} submitted a profile from the candidate portal": "{candidate} پرۆفایلێکی لە دەروازەی کاندیدان نارد",
   "{candidate} applied for “{job}” from the candidate portal": "{candidate} لە دەروازەی کاندیدان داوای «{job}»ی کرد",
   "The interview with {candidate} for “{job}” is completed: all evaluations are in": "چاوپێکەوتن لەگەڵ {candidate} بۆ «{job}» تەواو بوو: هەموو هەڵسەنگاندنەکان گەیشتن",
+  "Pipeline moves this user can make": "گواستنەوەکانی پایپلاین کە ئەم بەکارهێنەرە دەتوانێت بیکات",
+  "Choose which stage changes this user may do on the Applications board.": "هەڵبژێرە ئەم بەکارهێنەرە کام گۆڕینی قۆناغ دەتوانێت لەسەر تەختەی داواکارییەکان بکات.",
+  "Reject a candidate (any stage)": "ڕەتکردنەوەی کاندید (لە هەر قۆناغێک)",
+  "Move back a stage / restore rejected": "گەڕانەوە بۆ قۆناغێکی پێشوو / گەڕاندنەوەی ڕەتکراو",
+  "{from} → {to}": "{from} ← {to}",
+  "You are not allowed to make this move in the pipeline": "ڕێگەپێدراو نیت ئەم گواستنەوەیە لە پایپلاین بکەیت",
 };

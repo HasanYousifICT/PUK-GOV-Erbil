@@ -5,6 +5,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { parseMoves } from "@/lib/stage-moves";
 import { Permissions, resolvePermissions } from "@/lib/permissions";
 
 const COOKIE_NAME = "oroos_session";
@@ -32,9 +33,11 @@ export type SessionUser = {
   phone: string;
   title: string;
   permissions: Permissions;
+  /** pipeline moves this user may make (null = all) */
+  stageMoves: string[] | null;
 };
 
-type UserRow = { id: string; name: string; email: string; role: string; phone: string | null; title: string; permissions: string };
+type UserRow = { id: string; name: string; email: string; role: string; phone: string | null; title: string; permissions: string; stageMoves?: string };
 
 /** The user as the app sees it (role + resolved permissions). */
 export function toSessionUser(u: UserRow): SessionUser {
@@ -47,10 +50,11 @@ export function toSessionUser(u: UserRow): SessionUser {
     phone: u.phone ?? "",
     title: u.title,
     permissions: resolvePermissions(role, u.permissions),
+    stageMoves: role === "admin" ? null : parseMoves(u.stageMoves),
   };
 }
 
-export const SESSION_SELECT = { id: true, name: true, email: true, role: true, phone: true, title: true, permissions: true } as const;
+export const SESSION_SELECT = { id: true, name: true, email: true, role: true, phone: true, title: true, permissions: true, stageMoves: true } as const;
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);

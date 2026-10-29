@@ -14,3 +14,14 @@ export function useCan(area: Area, need: Level = "edit"): boolean {
   const p = useContext(Ctx);
   return p ? can(p, area, need) : true;
 }
+
+const MovesCtx = createContext<((from: string, to: string) => boolean) | null>(null);
+
+/** Whether the signed-in user may move an application between two stages (everything when no provider). */
+export function StageMovesProvider({ value, children }: { value: (from: string, to: string) => boolean; children: ReactNode }) {
+  return <MovesCtx.Provider value={value}>{children}</MovesCtx.Provider>;
+}
+
+export function useCanMove(): (from: string, to: string) => boolean {
+  return useContext(MovesCtx) ?? (() => true);
+}

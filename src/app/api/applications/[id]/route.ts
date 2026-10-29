@@ -1,3 +1,4 @@
+import { canMove } from "@/lib/stage-moves";
 import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
@@ -31,7 +32,7 @@ export async function GET(req: Request, { params }: Params) {
  */
 export async function PUT(req: Request, { params }: Params) {
   return handle(async () => {
-    await requireLevel(req, "applications", "edit");
+    const user = await requireLevel(req, "applications", "edit");
     const { id } = await params;
     const body = await readJson<{ stage?: string }>(req);
     const stage = str(body.stage);
@@ -41,6 +42,10 @@ export async function PUT(req: Request, { params }: Params) {
     if (!existing) throw new ApiError(404, "Application not found");
     if (existing.stage === stage) {
       return json(existing);
+    }
+
+    if (!canMove(user.stageMoves, user.role, existing.stage, stage)) {
+      throw new ApiError(403, "You are not allowed to make this move in the pipeline");
     }
 
     const application = await db.application.update({

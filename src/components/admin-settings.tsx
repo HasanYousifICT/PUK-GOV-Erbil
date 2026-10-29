@@ -29,6 +29,8 @@ import { ConfirmDialog, ErrorState, formatDate, TableSkeleton } from "@/componen
 import { apiClient, ManagedUser, SessionUser } from "@/lib/client";
 import { useI18n } from "@/lib/i18n";
 import { useOrg } from "@/lib/org-context";
+import { ALL_MOVE_KEYS, BACK_KEY, REJECT_KEY } from "@/lib/stage-moves";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AREAS, AREA_INFO, Area, Level, Permissions, presetByKey, presetKeyFor, ROLE_PRESETS } from "@/lib/permissions";
 
 /* ------------------------------ Organization ------------------------------ */
@@ -205,6 +207,7 @@ function UserDialog({
   const [preset, setPreset] = useState("recruiter");
   const [perms, setPerms] = useState<Permissions>(EMPTY_PERMS);
   const [active, setActive] = useState(true);
+  const [moves, setMoves] = useState<string[]>(ALL_MOVE_KEYS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -224,6 +227,7 @@ function UserDialog({
       setPreset(presetKeyFor(u.role, u.permissions));
       setPerms(u.permissions);
       setActive(u.active);
+      setMoves(u.stageMoves ?? ALL_MOVE_KEYS);
     } else {
       setName("");
       setEmail("");
@@ -232,6 +236,7 @@ function UserDialog({
       setPreset("recruiter");
       setPerms({ ...ROLE_PRESETS[1].permissions });
       setActive(true);
+      setMoves(ALL_MOVE_KEYS);
     }
   }, [editing]);
 
@@ -252,12 +257,14 @@ function UserDialog({
     setBusy(true);
     setError(null);
     const role = isAdminRole ? "admin" : "recruiter";
+    // null = every move; only stored as a list when some moves are switched off
+    const stageMoves = isAdminRole || perms.applications !== "edit" || ALL_MOVE_KEYS.every((k) => moves.includes(k)) ? null : moves;
     try {
       if (editing.mode === "add") {
-        await apiClient.createUser({ name, email, phone, title, password, role, permissions: perms });
+        await apiClient.createUser({ name, email, phone, title, password, role, permissions: perms, stageMoves });
         toast.success("User added");
       } else {
-        await apiClient.updateUser(editing.user.id, { name, phone, title, role, permissions: perms, active });
+        await apiClient.updateUser(editing.user.id, { name, phone, title, role, permissions: perms, stageMoves, active });
         toast.success("User updated");
       }
       onSaved();
@@ -368,6 +375,34 @@ function UserDialog({
                   </li>
                 ))}
               </ul>
+            )}
+            {!isAdminRole && perms.applications === "edit" && (
+              <div className="space-y-2 rounded-lg border bg-card p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">{t("Pipeline moves this user can make")}</p>
+                    <p className="text-xs text-muted-foreground">{t("Choose which stage changes this user may do on the Applications board.")}</p>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setMoves(ALL_MOVE_KEYS.every((k) => moves.includes(k)) ? [] : ALL_MOVE_KEYS)}>
+                    {ALL_MOVE_KEYS.every((k) => moves.includes(k)) ? t("Clear all") : t("Select all")}
+                  </Button>
+                </div>
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  {ALL_MOVE_KEYS.map((k) => (
+                    <label key={k} className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm">
+                      <Checkbox
+                        checked={moves.includes(k)}
+                        onCheckedChange={(c) => setMoves((l) => (c ? [...new Set([...l, k])] : l.filter((x) => x !== k)))}
+                      />
+                      {k === REJECT_KEY
+                        ? t("Reject a candidate (any stage)")
+                        : k === BACK_KEY
+                          ? t("Move back a stage / restore rejected")
+                          : t("{from} → {to}", { from: t(k.split(">")[0]), to: t(k.split(">")[1]) })}
+                    </label>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 

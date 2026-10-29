@@ -15,6 +15,7 @@ export type SessionUser = {
   phone: string;
   title: string;
   permissions: Permissions;
+  stageMoves: string[] | null;
 };
 
 export type ManagedUser = SessionUser & { active: boolean; lastLoginAt: string | null; createdAt: string };
@@ -486,6 +487,7 @@ export const apiClient = {
     password: string;
     role: "admin" | "recruiter";
     permissions?: Permissions;
+    stageMoves?: string[] | null;
   }) => api<ManagedUser>("/api/users", { method: "POST", body: JSON.stringify(data) }),
   updateUser: (
     id: string,
@@ -495,6 +497,7 @@ export const apiClient = {
       title?: string;
       role?: "admin" | "recruiter";
       permissions?: Permissions;
+      stageMoves?: string[] | null;
       active?: boolean;
       password?: string;
     }

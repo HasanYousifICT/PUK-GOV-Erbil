@@ -79,7 +79,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { useI18n } from "@/lib/i18n";
-import { useCan } from "@/lib/permissions-context";
+import { useCan, useCanMove } from "@/lib/permissions-context";
 /* --------------------------------- card --------------------------------- */
 
 function ApplicationCard({
@@ -100,6 +100,7 @@ function ApplicationCard({
   overlay?: boolean;
 }) {
   const { t } = useI18n();
+  const canMoveStage = useCanMove();
   return (
     <div
       className={cn(
@@ -148,7 +149,7 @@ function ApplicationCard({
                   {ALL_STAGES.map((s) => (
                     <DropdownMenuItem
                       key={s}
-                      disabled={s === app.stage}
+                      disabled={s === app.stage || !canMoveStage(app.stage, s)}
                       onClick={() => onMove(s)}
                     >
                       {t(s)}
@@ -308,6 +309,7 @@ function ApplicationDetailDialog({
   onNavigate: (state: NavState) => void;
 }) {
   const { t } = useI18n();
+  const canMoveStage = useCanMove();
   const [removing, setRemoving] = useState(false);
   const [removeBusy, setRemoveBusy] = useState(false);
 
@@ -393,7 +395,7 @@ function ApplicationDetailDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {ALL_STAGES.map((s) => (
-                    <SelectItem key={s} value={s} disabled={s === app.stage}>
+                    <SelectItem key={s} value={s} disabled={s === app.stage || !canMoveStage(app.stage, s)}>
                       {t(s)}
                     </SelectItem>
                   ))}
@@ -497,6 +499,7 @@ export function ApplicationsView({
   focusApplicationId?: string;
 }) {
   const { t } = useI18n();
+  const canMoveStage = useCanMove();
   const canEdit = useCan("applications", "edit");
   const [apps, setApps] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -610,6 +613,10 @@ export function ApplicationsView({
 
   async function moveApplication(app: Application, stage: string) {
     if (app.stage === stage) return;
+    if (!canMoveStage(app.stage, stage)) {
+      toast.error("You are not allowed to make this move in the pipeline");
+      return;
+    }
     try {
       await apiClient.moveApplication(app.id, stage);
       toast.success(
