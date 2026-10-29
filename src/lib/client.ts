@@ -41,7 +41,7 @@ export type PortalOpenJob = {
   canApply: boolean;
   createdAt: string;
 };
-export type PortalMyJob = { id: string; jobId: string; title: string; titleCkb?: string; location: string; employmentType: string; stage: string; status: string; appliedAt: string };
+export type PortalMyJob = { id: string; jobId: string; title: string; titleCkb?: string; location: string; employmentType: string; stage: string; status: string; appliedAt: string; interviews?: { id: string; date: string; time: string; interviewer: string; status: string }[] };
 
 export type Org = {
   name: string;

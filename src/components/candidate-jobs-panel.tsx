@@ -229,6 +229,30 @@ export function MyApplications({ refreshKey }: { refreshKey: number }) {
               <span className={`rounded-full px-3 py-1 text-xs font-medium ${tone(a.stage)}`}>{t(a.stage)}</span>
               <p className="mt-1 text-xs text-muted-foreground">{t("Pipeline stage")}</p>
             </div>
+            {(a.interviews?.length ?? 0) > 0 && (
+              <div className="w-full space-y-2 border-t pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Interview")}</p>
+                {a.interviews!.map((iv) => (
+                  <div key={iv.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/30 p-3 text-sm">
+                    <div className="space-y-0.5">
+                      <p className="font-medium" dir="ltr">
+                        {new Date(`${iv.date}T00:00:00`).toLocaleDateString()} · {iv.time}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("Interviewer")}: {iv.interviewer}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${
+                        iv.status === "Cancelled" ? "bg-red-100 text-red-700" : iv.status === "Completed" ? "bg-emerald-100 text-emerald-700" : "bg-sky-100 text-sky-700"
+                      }`}
+                    >
+                      {t(iv.status)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))
       )}

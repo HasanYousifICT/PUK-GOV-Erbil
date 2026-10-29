@@ -12,7 +12,11 @@ export async function GET(req: Request) {
       db.application.findMany({
         where: { candidateId: candidate.id },
         orderBy: { appliedAt: "desc" },
-        include: { job: { select: { id: true, title: true, location: true, employmentType: true } } },
+        include: {
+          job: { select: { id: true, title: true, location: true, employmentType: true } },
+          // only what the candidate needs: when, with whom, and whether it is still on (never the evaluations or feedback)
+          interviews: { select: { id: true, date: true, time: true, interviewer: true, status: true }, orderBy: [{ date: "asc" }, { time: "asc" }] },
+        },
       }),
       quotaOf(candidate.id),
     ]);
@@ -29,6 +33,7 @@ export async function GET(req: Request) {
         stage: a.stage,
         status: a.status,
         appliedAt: a.appliedAt,
+        interviews: a.interviews,
       })),
     });
   });
