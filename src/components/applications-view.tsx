@@ -1,5 +1,5 @@
 "use client";
-import { fmtDate, fmtDateTime, time12 } from "@/lib/datetime";
+import { time12 } from "@/lib/datetime";
 import { JobTitleText } from "@/components/job-title-text";
 import { SearchableSelect } from "@/components/searchable-select";
 import { useJobTitles } from "@/components/job-titles";
@@ -20,13 +20,9 @@ import {
 import {
   CalendarDays,
   ClipboardList,
-  Clock,
   GripVertical,
-  MoreHorizontal,
   Plus,
   Trash2,
-  UserCheck,
-  XCircle,
 } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
@@ -38,17 +34,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { CategoryFilter, useCategories } from "@/components/category-picker";
 import { descendantIds } from "@/lib/categories";
@@ -77,130 +62,34 @@ import {
   useLoadEffect,
 } from "@/components/shared";
 import { cn } from "@/lib/utils";
+import {
+  AppActions,
+  ApplicationCard,
+  ApplicationsCards,
+  ApplicationsList,
+  STAGE_DOT,
+  STAGE_TOP,
+  StageTabs,
+  StepList,
+  StepsBar,
+  ViewMode,
+  ViewSwitcher,
+  VIEW_MODES,
+} from "@/components/application-parts";
 
 import { useI18n } from "@/lib/i18n";
 import { useCan, useCanInterview, useCanMove } from "@/lib/permissions-context";
 /* --------------------------------- card --------------------------------- */
 
-function ApplicationCard({
-  app,
-  onView,
-  onSchedule,
-  onMove,
-  onRemove,
-  dragging = false,
-  overlay = false,
-}: {
-  app: Application;
-  onView: () => void;
-  onSchedule: () => void;
-  onMove: (stage: string) => void;
-  onRemove: () => void;
-  dragging?: boolean;
-  overlay?: boolean;
-}) {
-  const { t } = useI18n();
-  const canMoveStage = useCanMove();
-  const canScheduleIv = useCanInterview("schedule");
-  return (
-    <div
-      className={cn(
-        "rounded-lg border bg-card p-3 shadow-sm transition-shadow",
-        overlay ? "w-64 rotate-1 shadow-lg" : "hover:shadow-md",
-        dragging && "kanban-card-dragging"
-      )}
-    >
-      <div className="flex items-start gap-2">
-        <Avatar name={app.candidate?.name ?? "?"} className="h-8 w-8 text-[10px]" />
-        <div className="min-w-0 flex-1">
-          <button
-            className="block max-w-full truncate text-start text-sm font-medium underline-offset-2 hover:underline"
-            onClick={onView}
-            title={app.candidate?.name}
-          >
-            {app.candidate?.name ?? "Unknown"}
-          </button>
-          <p className="truncate text-xs text-muted-foreground" title={app.job?.title}>
-            {app.job ? <JobTitleText title={app.job.title} /> : "—"}
-          </p>
-        </div>
-        {!overlay && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0 text-muted-foreground"
-                aria-label={t("Actions for {name}", { name: app.candidate?.name ?? "" })}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={onView}>{t("View details")}</DropdownMenuItem>
-              {canScheduleIv && (
-                <DropdownMenuItem onClick={onSchedule}>
-                  <CalendarDays className="me-2 h-4 w-4" /> {t("Schedule interview")}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Clock className="me-2 h-4 w-4" /> {t("Move to stage")}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="max-h-72 thin-scrollbar">
-                  {ALL_STAGES.map((s) => (
-                    <DropdownMenuItem
-                      key={s}
-                      disabled={s === app.stage || !canMoveStage(app.stage, s)}
-                      onClick={() => onMove(s)}
-                    >
-                      {t(s)}
-                      {s === app.stage && <span className="ms-auto text-xs text-muted-foreground">{t("current")}</span>}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={onRemove}>
-                <Trash2 className="me-2 h-4 w-4" /> {t("Remove application")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
-
-      <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2">
-        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Clock className="h-3 w-3" />
-          {formatDate(app.appliedAt)}
-        </span>
-        {(app.interviews?.length ?? 0) > 0 && (
-          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <CalendarDays className="h-3 w-3" />
-            {t(app.interviews!.length === 1 ? "{n} interview" : "{n} interviews", { n: app.interviews!.length })}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function DraggableCard(props: {
-  app: Application;
-  onView: () => void;
-  onSchedule: () => void;
-  onMove: (stage: string) => void;
-  onRemove: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: props.app.id });
+function DraggableCard({ app, actions }: { app: Application; actions: AppActions }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: app.id });
   return (
     <div ref={setNodeRef} {...listeners} {...attributes} className={cn(isDragging && "opacity-40")}>
       <div className="group relative">
         <span className="absolute -start-0.5 top-1/2 hidden -translate-y-1/2 cursor-grab text-muted-foreground/50 md:block">
           <GripVertical className="h-4 w-4" />
         </span>
-        <ApplicationCard {...props} dragging={isDragging} />
+        <ApplicationCard app={app} actions={actions} dragging={isDragging} />
       </div>
     </div>
   );
@@ -213,59 +102,31 @@ function KanbanColumn({
   apps,
   total,
   onLoadMore,
-  onView,
-  onSchedule,
-  onMove,
-  onRemove,
+  actions,
 }: {
   stage: string;
   apps: Application[];
   total: number;
   onLoadMore: () => void;
-  onView: (app: Application) => void;
-  onSchedule: (app: Application) => void;
-  onMove: (app: Application, stage: string) => void;
-  onRemove: (app: Application) => void;
+  actions: AppActions;
 }) {
   const { t } = useI18n();
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const isRejected = stage === REJECTED_STAGE;
 
   return (
-    <div className="flex w-[280px] shrink-0 flex-col rounded-xl border bg-muted/30 md:w-[300px]">
-      <div className="flex items-center justify-between gap-2 border-b bg-card/60 px-3 py-2.5 rounded-t-xl">
+    <div className={cn("flex w-[290px] shrink-0 flex-col rounded-xl border border-t-4 bg-muted/30 shadow-sm md:w-[320px]", STAGE_TOP[stage])}>
+      <div className="flex items-center justify-between gap-2 border-b bg-card/70 px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "inline-block h-2 w-2 rounded-full",
-              stage === "Hired"
-                ? "bg-emerald-500"
-                : stage === "Selected"
-                  ? "bg-teal-400"
-                  : stage === "Interview"
-                    ? "bg-blue-400"
-                    : stage === "Screening"
-                      ? "bg-sky-400"
-                      : stage === "Rejected"
-                        ? "bg-red-400"
-                        : "bg-slate-300"
-            )}
-          />
+          <span className={cn("inline-block h-2.5 w-2.5 rounded-full", STAGE_DOT[stage] ?? "bg-slate-300")} />
           <h3 className="text-sm font-semibold">{t(stage)}</h3>
-          <span
-            className={cn(
-              "rounded-full border px-1.5 py-px text-[11px] font-medium tabular-nums",
-              STAGE_STYLES[stage] ?? "bg-slate-100 text-slate-600 border-slate-200"
-            )}
-          >
-            {total}
-          </span>
         </div>
+        <span className={cn("rounded-full border px-2 py-px text-[11px] font-semibold tabular-nums", STAGE_STYLES[stage] ?? "bg-slate-100 text-slate-600 border-slate-200")}>{total}</span>
       </div>
       <div
         ref={setNodeRef}
         className={cn(
-          "flex max-h-[calc(100vh-320px)] min-h-[120px] flex-1 flex-col gap-2 overflow-y-auto p-2 thin-scrollbar",
+          "flex max-h-[calc(100vh-340px)] min-h-[120px] flex-1 flex-col gap-2.5 overflow-y-auto p-2.5 thin-scrollbar",
           isOver && "bg-sky-50/60 ring-2 ring-inset ring-sky-300 rounded-b-xl"
         )}
         aria-label={t("{stage} column with {n} applications", { stage: t(stage), n: total })}
@@ -275,16 +136,7 @@ function KanbanColumn({
             {isRejected ? t("No rejected candidates") : t("Drop candidates here")}
           </div>
         ) : (
-          apps.map((app) => (
-            <DraggableCard
-              key={app.id}
-              app={app}
-              onView={() => onView(app)}
-              onSchedule={() => onSchedule(app)}
-              onMove={(s) => onMove(app, s)}
-              onRemove={() => onRemove(app)}
-            />
-          ))
+          apps.map((app) => <DraggableCard key={app.id} app={app} actions={actions} />)
         )}
         {apps.length < total && (
           <Button variant="ghost" size="sm" className="shrink-0" onClick={onLoadMore}>
@@ -549,6 +401,27 @@ export function ApplicationsView({
   const [scheduleFor, setScheduleFor] = useState<Application | null>(null);
   const [dragApp, setDragApp] = useState<Application | null>(null);
 
+  // how the applications are shown: board | list | cards | steps (remembered in this browser)
+  const [mode, setMode] = useState<ViewMode>("board");
+  const [listStage, setListStage] = useState("all");
+  const [step, setStep] = useState<string>("Applied");
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("oroos_apps_view");
+      if (v && (VIEW_MODES as string[]).includes(v)) setMode(v as ViewMode);
+    } catch {
+      // storage unavailable: keep the board
+    }
+  }, []);
+  function changeMode(m: ViewMode) {
+    setMode(m);
+    try {
+      localStorage.setItem("oroos_apps_view", m);
+    } catch {
+      // ignore
+    }
+  }
+
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [search, setSearch] = useState("");
   const [searchKey, setSearchKey] = useState("");
@@ -657,11 +530,36 @@ export function ApplicationsView({
 
   const boardStages = [...STAGES, REJECTED_STAGE];
 
+  const actions: AppActions = {
+    onView: (a) => setDetailAppId(a.id),
+    onSchedule: (a) => setScheduleFor(a),
+    onMove: moveApplication,
+    onRemove: (a) => setDetailAppId(a.id),
+  };
+
+  // List / Cards / Steps work on the same loaded applications
+  const stageKey = mode === "steps" ? step : listStage;
+  const shownApps =
+    stageKey === "all"
+      ? [...filtered].sort((a, b) => b.appliedAt.localeCompare(a.appliedAt))
+      : filtered.filter((a) => a.stage === stageKey);
+  const shownTotal = stageKey === "all" ? totalApps : counts[stageKey] ?? 0;
+  async function loadMoreShown() {
+    if (stageKey !== "all") return loadMore(stageKey);
+    for (const s of boardStages) {
+      if (filtered.filter((a) => a.stage === s).length < (counts[s] ?? 0)) await loadMore(s);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
         title={t("Applications")}
-        description={t("Drag candidates across the pipeline, or use the card menu on touch devices.")}
+        description={
+          mode === "board"
+            ? t("Drag candidates across the pipeline, or use the card menu on touch devices.")
+            : t("Review candidates and move them through the pipeline.")
+        }
         action={
           !canEdit ? undefined : <Button onClick={() => setAddOpen(true)}>
             <Plus className="me-2 h-4 w-4" />
@@ -687,9 +585,12 @@ export function ApplicationsView({
             }}
             index={catIndex}
           />
-          <p className="text-sm text-muted-foreground lg:ms-auto">
-            {t(totalApps === 1 ? "{n} application" : "{n} applications", { n: totalApps })}
-          </p>
+          <div className="flex items-center gap-3 lg:ms-auto">
+            <p className="text-sm text-muted-foreground">
+              {t(totalApps === 1 ? "{n} application" : "{n} applications", { n: totalApps })}
+            </p>
+            <ViewSwitcher value={mode} onChange={changeMode} />
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
@@ -826,7 +727,7 @@ export function ApplicationsView({
         />
       )}
 
-      {apps && (apps.length > 0 || searchKey || jobFilter !== "all" || categoryFilter) && (
+      {apps && (apps.length > 0 || searchKey || jobFilter !== "all" || categoryFilter) && mode === "board" && (
         <DndContext
           sensors={sensors}
           onDragStart={onDragStart}
@@ -842,28 +743,49 @@ export function ApplicationsView({
                   apps={filtered.filter((a) => a.stage === stage)}
                   total={counts[stage] ?? 0}
                   onLoadMore={() => loadMore(stage)}
-                  onView={(app) => setDetailAppId(app.id)}
-                  onSchedule={(app) => setScheduleFor(app)}
-                  onMove={moveApplication}
-                  onRemove={(app) => setDetailAppId(app.id)}
+                  actions={actions}
                 />
               ))}
             </div>
           </div>
 
           <DragOverlay dropAnimation={null}>
-            {dragApp ? (
-              <ApplicationCard
-                app={dragApp}
-                overlay
-                onView={() => {}}
-                onSchedule={() => {}}
-                onMove={() => {}}
-                onRemove={() => {}}
-              />
-            ) : null}
+            {dragApp ? <ApplicationCard app={dragApp} overlay actions={actions} /> : null}
           </DragOverlay>
         </DndContext>
+      )}
+
+      {apps && (apps.length > 0 || searchKey || jobFilter !== "all" || categoryFilter) && mode !== "board" && (
+        <div className="space-y-3">
+          {mode === "steps" ? (
+            <StepsBar step={step} onChange={setStep} counts={counts} />
+          ) : (
+            <StageTabs value={listStage} onChange={setListStage} counts={counts} />
+          )}
+
+          {shownApps.length === 0 ? (
+            <div className="rounded-xl border border-dashed bg-card py-12 text-center text-sm text-muted-foreground">
+              {t("No candidates here")}
+            </div>
+          ) : mode === "list" ? (
+            <ApplicationsList apps={shownApps} actions={actions} />
+          ) : mode === "cards" ? (
+            <ApplicationsCards apps={shownApps} actions={actions} />
+          ) : (
+            <StepList step={step} apps={shownApps} actions={actions} />
+          )}
+
+          {shownApps.length > 0 && (
+            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>{t("Showing {n} of {total}", { n: shownApps.length, total: shownTotal })}</span>
+              {shownApps.length < shownTotal && (
+                <Button variant="outline" size="sm" onClick={loadMoreShown}>
+                  {t("Load more")} ({shownTotal - shownApps.length})
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       <AddApplicationDialog open={addOpen} onOpenChange={setAddOpen} onCreated={load} />

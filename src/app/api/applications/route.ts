@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 
 const APP_INCLUDE = {
-  candidate: { select: { id: true, name: true, email: true, phone: true, skills: true, experience: true, location: true, resume: true, resumeName: true } },
+  candidate: { select: { id: true, name: true, email: true, phone: true, skills: true, experience: true, location: true, resume: true, resumeName: true, code: true } },
   job: { select: { id: true, title: true, location: true, employmentType: true, status: true, categoryId: true } },
   history: { orderBy: { changedAt: "asc" as const } },
   interviews: { orderBy: { date: "desc" as const } },
@@ -127,8 +127,8 @@ export async function POST(req: Request) {
         history: { create: { previousStage: "", newStage: "Applied" } },
       },
       include: {
-        candidate: { select: { id: true, name: true, email: true, phone: true, skills: true, experience: true, location: true, resume: true, resumeName: true } },
-        job: { select: { id: true, title: true, location: true, employmentType: true, status: true } },
+        candidate: { select: { id: true, name: true, email: true, phone: true, skills: true, experience: true, location: true, resume: true, resumeName: true, code: true } },
+        job: { select: { id: true, title: true, location: true, employmentType: true, status: true, categoryId: true } },
         history: true,
         interviews: true,
       },

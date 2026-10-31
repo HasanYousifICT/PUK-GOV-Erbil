@@ -234,8 +234,8 @@ export type Application = {
   status: "Active" | "Hired" | "Rejected";
   appliedAt: string;
   updatedAt: string;
-  candidate?: Pick<Candidate, "id" | "name" | "email" | "phone" | "skills" | "experience" | "location" | "resume" | "resumeName">;
-  job?: Pick<Job, "id" | "title" | "location" | "employmentType" | "status">;
+  candidate?: Pick<Candidate, "id" | "name" | "email" | "phone" | "skills" | "experience" | "location" | "resume" | "resumeName" | "code">;
+  job?: Pick<Job, "id" | "title" | "location" | "employmentType" | "status" | "categoryId">;
   history?: ApplicationHistoryEntry[];
   interviews?: Interview[];
   _count?: { applications: number };
