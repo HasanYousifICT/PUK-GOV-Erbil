@@ -5,7 +5,14 @@ import { CandidateField, CustomData, CustomValue, isEmptyValue, isFileValue, isT
 
 /** "high": a bigger value / later option / "yes" / filled is stronger. "low": the opposite. */
 export type StrengthDir = "high" | "low";
-export type StrengthFieldRule = { fieldId: string; dir: StrengthDir };
+export type StrengthFieldRule = {
+  fieldId: string;
+  dir: StrengthDir;
+  /** dropdown / multi-select: the options from strongest to weakest, chosen by the admin (replaces `dir`) */
+  order?: string[];
+  /** multi-select: rank by how many are ticked, or by the best option ticked (uses `order`) */
+  by?: "count" | "best";
+};
 
 export type StrengthConfig = {
   fields: StrengthFieldRule[];
@@ -43,7 +50,13 @@ export function parseStrengthConfig(raw: unknown): StrengthConfig {
       const f = x as Record<string, unknown> | null;
       if (!f || typeof f.fieldId !== "string" || !f.fieldId || seen.has(f.fieldId)) continue;
       seen.add(f.fieldId);
-      fields.push({ fieldId: f.fieldId, dir: f.dir === "low" ? "low" : "high" });
+      const rule: StrengthFieldRule = { fieldId: f.fieldId, dir: f.dir === "low" ? "low" : "high" };
+      if (Array.isArray(f.order)) {
+        const order = [...new Set(f.order.filter((x): x is string => typeof x === "string" && x !== ""))].slice(0, 1000);
+        if (order.length) rule.order = order;
+      }
+      if (f.by === "best") rule.by = "best";
+      fields.push(rule);
       if (fields.length >= MAX_STRENGTH_FIELDS) break;
     }
   }
@@ -61,14 +74,33 @@ export function levelOf(score: number, cfg: Pick<StrengthConfig, "strongMin" | "
 }
 
 /**
+ * The options from strongest to weakest: the admin's order (options deleted since are dropped), then any option
+ * that is not in it yet at the end. Without an order: the field's option list, reversed when "low" is stronger.
+ */
+export function effectiveOrder(field: Pick<CandidateField, "options">, rule: Pick<StrengthFieldRule, "dir" | "order">): string[] {
+  if (rule.order) {
+    const known = new Set(field.options);
+    const o = rule.order.filter((x) => known.has(x));
+    for (const x of field.options) if (!o.includes(x)) o.push(x);
+    return o;
+  }
+  return rule.dir === "high" ? [...field.options].reverse() : [...field.options];
+}
+
+/**
  * How "big" an answer is, for ranking. null = nothing answered (always ranks last).
  * dropdown: position in the option list (later = bigger) · number · date · yes/no (yes = 1) ·
  * multi-select / table: how many ticked / rows · text / file: filled = 1.
  */
-export function strengthKey(field: CandidateField, v: CustomValue | undefined): number | null {
+export function strengthKey(field: CandidateField, v: CustomValue | undefined, rule?: StrengthFieldRule): number | null {
   if (isEmptyValue(v)) return null;
   switch (field.type) {
     case "select": {
+      if (rule?.order) {
+        const o = effectiveOrder(field, rule);
+        const i = o.indexOf(String(v));
+        return i < 0 ? -1 : o.length - 1 - i; // strongest first in the list → biggest key
+      }
       const i = field.options.indexOf(String(v));
       return i; // an answer no longer in the list (-1) ranks below every listed option
     }
@@ -82,8 +114,19 @@ export function strengthKey(field: CandidateField, v: CustomValue | undefined): 
     }
     case "yesno":
       return v === "yes" ? 1 : 0;
-    case "multiselect":
-      return Array.isArray(v) ? v.length : 1;
+    case "multiselect": {
+      if (!Array.isArray(v)) return 1;
+      if (rule?.by === "best") {
+        const o = effectiveOrder(field, rule);
+        let best = -1;
+        for (const x of v) {
+          const i = o.indexOf(String(x));
+          if (i >= 0) best = Math.max(best, o.length - 1 - i);
+        }
+        return best;
+      }
+      return v.length;
+    }
     case "table":
       return isTableValue(v) ? v.rows.length : 0;
     case "file":
@@ -127,10 +170,12 @@ export function scoreApplicants(
 
   for (const rule of rules) {
     const field = byId.get(rule.fieldId)!;
-    const sign = rule.dir === "low" ? -1 : 1;
+    // with an admin order (dropdown, or multi-select by best option) the order already says which is stronger
+    const ordered = (field.type === "select" && !!rule.order) || (field.type === "multiselect" && rule.by === "best");
+    const sign = !ordered && rule.dir === "low" ? -1 : 1;
     // empty answers are always the worst, whichever direction is chosen
     const keys = data.map((d) => {
-      const k = strengthKey(field, d[rule.fieldId]);
+      const k = strengthKey(field, d[rule.fieldId], rule);
       return k === null ? -Infinity : k * sign;
     });
     const counts = new Map<number, number>();

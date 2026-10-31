@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, Gauge, Loader2, Plus, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Gauge, Loader2, Plus, X } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { useCandidateFields, useCandidateSections } from "@/components/candidate
 import { LEVEL_STYLE, setStrengthCache, useLevelLabel } from "@/components/strength";
 import { apiClient, StrengthSaved } from "@/lib/client";
 import { CandidateField, fieldLabel, sectionLabel } from "@/lib/candidate-fields";
-import { DEFAULT_MEDIUM_MIN, DEFAULT_STRONG_MIN, parseStrengthConfig, StrengthConfig, StrengthDir } from "@/lib/strength";
+import { DEFAULT_MEDIUM_MIN, DEFAULT_STRONG_MIN, effectiveOrder, parseStrengthConfig, StrengthConfig, StrengthFieldRule } from "@/lib/strength";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -21,14 +21,16 @@ function dirLabels(type: CandidateField["type"]): [string, string] {
     case "select":
       return ["Later options in the list are stronger", "Earlier options in the list are stronger"];
     case "number":
-      return ["Higher number is stronger", "Lower number is stronger"];
+      return ["From smallest to highest (highest is stronger)", "From highest to smallest (smallest is stronger)"];
     case "date":
-      return ["Newer date is stronger", "Older date is stronger"];
+      return ["Newest date is stronger", "Oldest date is stronger"];
     case "yesno":
       return ["Yes is stronger", "No is stronger"];
     case "multiselect":
     case "table":
       return ["More is stronger", "Fewer is stronger"];
+    case "file":
+      return ["Uploaded is stronger", "Not uploaded is stronger"];
     default:
       return ["Filled in is stronger", "Empty is stronger"];
   }
@@ -147,19 +149,45 @@ export function StrengthSettings() {
           const f = byId.get(r.fieldId)!;
           const [hi, lo] = dirLabels(f.type);
           const idx = cfg.fields.findIndex((x) => x.fieldId === r.fieldId);
+          const patch = (p: Partial<StrengthFieldRule>) => setFields(cfg.fields.map((x) => (x.fieldId === r.fieldId ? { ...x, ...p } : x)));
+          const isSelect = f.type === "select";
+          const isMulti = f.type === "multiselect";
+          const byBest = isMulti && r.by === "best";
+          const showOrder = (isSelect || byBest) && f.options.length > 0;
+          const order = showOrder ? effectiveOrder(f, r) : [];
+          const moveOpt = (k: number, d: -1 | 1) => {
+            const n = [...order];
+            const j = k + d;
+            if (j < 0 || j >= n.length) return;
+            [n[k], n[j]] = [n[j], n[k]];
+            patch({ order: n });
+          };
           return (
             <div key={r.fieldId} className="rounded-lg border p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{fieldLabel(f, locale)}</span>
-                <select
-                  className="h-8 rounded-md border bg-background px-2 text-sm"
-                  value={r.dir}
-                  aria-label={t("Which answer is stronger")}
-                  onChange={(e) => setFields(cfg.fields.map((x) => (x.fieldId === r.fieldId ? { ...x, dir: e.target.value as StrengthDir } : x)))}
-                >
-                  <option value="high">{t(hi)}</option>
-                  <option value="low">{t(lo)}</option>
-                </select>
+                {isMulti && (
+                  <select
+                    className="h-8 rounded-md border bg-background px-2 text-sm"
+                    value={r.by === "best" ? "best" : "count"}
+                    aria-label={t("Rank by")}
+                    onChange={(e) => patch({ by: e.target.value === "best" ? "best" : "count", order: e.target.value === "best" ? effectiveOrder(f, r) : r.order })}
+                  >
+                    <option value="count">{t("Number of answers ticked")}</option>
+                    <option value="best">{t("Best answer ticked")}</option>
+                  </select>
+                )}
+                {!isSelect && !byBest && (
+                  <select
+                    className="h-8 rounded-md border bg-background px-2 text-sm"
+                    value={r.dir}
+                    aria-label={t("Which answer is stronger")}
+                    onChange={(e) => patch({ dir: e.target.value === "low" ? "low" : "high" })}
+                  >
+                    <option value="high">{t(hi)}</option>
+                    <option value="low">{t(lo)}</option>
+                  </select>
+                )}
                 <Button type="button" variant="ghost" size="icon" className="h-8 w-8" disabled={idx === 0} onClick={() => move(idx, -1)} aria-label={t("Move up")}>
                   <ArrowUp className="h-4 w-4" />
                 </Button>
@@ -170,13 +198,32 @@ export function StrengthSettings() {
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-              {f.type === "select" && f.options.length > 0 && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {t("Order of options")}:{" "}
-                  {(r.dir === "high" ? [...f.options].reverse() : f.options).slice(0, 12).join(" › ")}
-                  {f.options.length > 12 ? " …" : ""}
-                  <span className="ms-1">({t("strongest first. Change the order in Profile fields.")})</span>
-                </p>
+              {showOrder && (
+                <div className="mt-3">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">{t("Sort the options: the strongest on top, the weakest at the bottom")}</p>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => patch({ order: [...order].reverse() })}>
+                      <ArrowUpDown className="me-1 h-3.5 w-3.5" />
+                      {t("Reverse")}
+                    </Button>
+                  </div>
+                  <ol className="max-h-72 space-y-1 overflow-y-auto">
+                    {order.map((o, k) => (
+                      <li key={o} className="flex items-center gap-2 rounded-md border bg-muted/30 px-2 py-1 text-sm">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-background text-[10px] tabular-nums text-muted-foreground">{k + 1}</span>
+                        <span className="min-w-0 flex-1 truncate">{o}</span>
+                        {k === 0 && <span className="shrink-0 text-[10px] font-semibold text-emerald-700">{t("Strongest")}</span>}
+                        {k === order.length - 1 && order.length > 1 && <span className="shrink-0 text-[10px] font-semibold text-red-600">{t("Weakest")}</span>}
+                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={k === 0} onClick={() => moveOpt(k, -1)} aria-label={t("Move up")}>
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={k === order.length - 1} onClick={() => moveOpt(k, 1)} aria-label={t("Move down")}>
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
               )}
             </div>
           );
