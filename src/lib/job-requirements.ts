@@ -26,6 +26,7 @@ export function parseRequirements(raw: unknown): CustomFilter[] {
       value: typeof o.value === "string" ? o.value.slice(0, 200) : undefined,
       value2: typeof o.value2 === "string" ? o.value2.slice(0, 200) : undefined,
       values: cleanValues(o.values),
+      weight: typeof o.weight === "number" && Number.isFinite(o.weight) ? Math.min(100, Math.max(1, Math.round(o.weight))) : undefined,
     };
     if (isCustomFilterActive(rule)) out.push(rule);
   }

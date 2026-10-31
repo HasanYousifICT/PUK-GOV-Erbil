@@ -1,4 +1,5 @@
 import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
+import { refreshStrength } from "@/lib/strength-server";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireCandidate, str } from "@/lib/api-candidate";
 import { locationFromAnswers } from "@/lib/candidate-fields";
@@ -71,6 +72,7 @@ export async function POST(req: Request) {
       }
       return c;
     });
+    await refreshStrength(candidate.id);
     await notifyUsers(await usersWith("candidates"), "portal_profile", { candidate: candidate.name }, { view: "candidate-detail", candidateId: candidate.id });
     return json({ ok: true, candidate }, 201);
   });

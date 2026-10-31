@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Briefcase, Building2, Download, Flag, Layers, KeyRound, ListChecks, Loader2, Palette, UserCog, Users, UsersRound, type LucideIcon } from "lucide-react";
+import { Briefcase, Building2, Download, Flag, Gauge, Layers, KeyRound, ListChecks, Loader2, Palette, UserCog, Users, UsersRound, type LucideIcon } from "lucide-react";
 import { toast } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/shared";
 import { ClassificationView } from "@/components/classification-view";
 import { JobTitlesSettings } from "@/components/job-titles";
 import { CandidateFieldsSettings } from "@/components/candidate-fields";
+import { StrengthSettings } from "@/components/strength-settings";
 import { BackupSettings } from "@/components/backup-settings";
 import { BannerSettings } from "@/components/banner-settings";
 import { OrganizationSettings, UsersSettings } from "@/components/admin-settings";
@@ -20,7 +21,7 @@ import { CandidateAccessSettings, CvDesignSettings } from "@/components/candidat
 
 import { useI18n } from "@/lib/i18n";
 
-export type SettingsTab = "profile" | "organization" | "users" | "access" | "backup" | "banner" | "classification" | "jobtitles" | "fields" | "cv";
+export type SettingsTab = "profile" | "organization" | "users" | "access" | "backup" | "banner" | "classification" | "jobtitles" | "fields" | "strength" | "cv";
 
 /** Sub-pages of Settings (shown as a submenu in the sidebar). `admin` ones are for administrators only. */
 export const SETTINGS_TABS: { tab: SettingsTab; label: string; description: string; icon: LucideIcon; admin: boolean; area?: Area }[] = [
@@ -33,6 +34,7 @@ export const SETTINGS_TABS: { tab: SettingsTab; label: string; description: stri
   { tab: "classification", label: "Classification", description: "Job categories used to classify jobs.", icon: Layers, admin: true, area: "classification" },
   { tab: "jobtitles", label: "Job titles", description: "The list of job titles used when creating jobs.", icon: Briefcase, admin: true, area: "jobs" },
   { tab: "fields", label: "Profile fields", description: "Sections and fields of the candidate profile and form.", icon: ListChecks, admin: true },
+  { tab: "strength", label: "Candidate strength", description: "Conditions that rate how strong a candidate profile is.", icon: Gauge, admin: true },
   { tab: "cv", label: "CV design", description: "How candidate CVs look.", icon: Palette, admin: true },
 ];
 
@@ -205,6 +207,7 @@ export function SettingsView({
           {tab === "backup" && <BackupSettings />}
           {tab === "users" && <UsersSettings me={user} />}
           {tab === "fields" && <CandidateFieldsSettings />}
+          {tab === "strength" && <StrengthSettings />}
           {tab === "cv" && <CvDesignSettings />}
         </>
       )}

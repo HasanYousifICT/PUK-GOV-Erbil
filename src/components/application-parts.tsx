@@ -45,6 +45,8 @@ import { ALL_STAGES, REJECTED_STAGE, STAGES } from "@/lib/constants";
 import type { Application } from "@/lib/client";
 import { useI18n } from "@/lib/i18n";
 import { useCanInterview, useCanMove } from "@/lib/permissions-context";
+import { StrengthBadge, StrengthBar, useStrength } from "@/components/strength";
+import { strengthEnabled } from "@/lib/strength";
 import { cn } from "@/lib/utils";
 
 /* -------------------------------- constants ------------------------------- */
@@ -200,6 +202,7 @@ export function ApplicationCard({
 }) {
   const { t } = useI18n();
   const facts = useAppFacts()(app);
+  const strength = useStrength();
   const count = app.interviews?.length ?? 0;
   return (
     <div
@@ -215,8 +218,9 @@ export function ApplicationCard({
           <button className="block max-w-full truncate text-start text-sm font-semibold underline-offset-2 hover:underline" onClick={() => actions.onView(app)} title={facts.name}>
             {facts.name}
           </button>
-          <div className="mt-0.5">
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
             <CodeChip code={facts.code} />
+            <StrengthBadge score={app.candidate?.strength} config={strength} />
           </div>
         </div>
         {!overlay && <ApplicationMenu app={app} actions={actions} />}
@@ -337,13 +341,16 @@ export function StageTabs({
 export function ApplicationsList({ apps, actions }: { apps: Application[]; actions: AppActions }) {
   const { t } = useI18n();
   const facts = useAppFacts();
+  const strength = useStrength();
+  const showStrength = strengthEnabled(strength);
   return (
     <div className="overflow-x-auto rounded-xl border bg-card shadow-sm thin-scrollbar">
-      <table className="w-full min-w-[860px] text-sm">
+      <table className="w-full min-w-[960px] text-sm">
         <thead>
           <tr className="bg-muted/40 text-start text-xs text-muted-foreground">
             <th className="px-4 py-3 text-start font-medium">{t("Candidate")}</th>
             <th className="px-4 py-3 text-start font-medium">{t("Job")}</th>
+            {showStrength && <th className="px-4 py-3 text-start font-medium">{t("Profile strength")}</th>}
             <th className="px-4 py-3 text-start font-medium">{t("Contact")}</th>
             <th className="px-4 py-3 text-start font-medium">{t("Applied")}</th>
             <th className="px-4 py-3 text-start font-medium">{t("Stage")}</th>
@@ -378,6 +385,14 @@ export function ApplicationsList({ apps, actions }: { apps: Application[]; actio
                     </p>
                   )}
                 </td>
+                {showStrength && (
+                  <td className="px-4 py-2.5">
+                    <div className="w-28 space-y-1">
+                      <StrengthBadge score={app.candidate?.strength} config={strength} />
+                      <StrengthBar score={app.candidate?.strength} config={strength} />
+                    </div>
+                  </td>
+                )}
                 <td className="px-4 py-2.5">
                   <p className="text-xs" dir="ltr">
                     {f.phone || "—"}
@@ -435,6 +450,7 @@ function StageSelect({ app, onMove }: { app: Application; onMove: (stage: string
 export function ApplicationsCards({ apps, actions }: { apps: Application[]; actions: AppActions }) {
   const { t } = useI18n();
   const facts = useAppFacts();
+  const strength = useStrength();
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {apps.map((app) => {
@@ -451,6 +467,7 @@ export function ApplicationsCards({ apps, actions }: { apps: Application[]; acti
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   <CodeChip code={f.code} />
                   <StageBadge stage={app.stage} className="text-[10px]" />
+                  <StrengthBadge score={app.candidate?.strength} config={strength} />
                 </div>
               </div>
               <ApplicationMenu app={app} actions={actions} />
@@ -479,6 +496,8 @@ export function ApplicationsCards({ apps, actions }: { apps: Application[]; acti
                 </Fact>
               )}
             </div>
+
+            <StrengthBar score={app.candidate?.strength} config={strength} className="mt-3" />
 
             <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
@@ -568,6 +587,7 @@ export function StepsBar({
 export function StepList({ step, apps, actions }: { step: string; apps: Application[]; actions: AppActions }) {
   const { t } = useI18n();
   const facts = useAppFacts();
+  const strength = useStrength();
   const canMoveStage = useCanMove();
   const i = (STAGES as readonly string[]).indexOf(step);
   const next = i >= 0 && i < STAGES.length - 1 ? STAGES[i + 1] : null;
@@ -584,7 +604,10 @@ export function StepList({ step, apps, actions }: { step: string; apps: Applicat
                 <button className="block max-w-full truncate text-start text-sm font-semibold underline-offset-2 hover:underline" onClick={() => actions.onView(app)} title={f.name}>
                   {f.name}
                 </button>
-                <CodeChip code={f.code} />
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                  <CodeChip code={f.code} />
+                  <StrengthBadge score={app.candidate?.strength} config={strength} />
+                </div>
               </div>
             </div>
             <div className="min-w-0 space-y-1 lg:w-[30%]">

@@ -77,6 +77,8 @@ import {
   VIEW_MODES,
 } from "@/components/application-parts";
 
+import { StrengthBreakdown, StrengthProvider, useStrengthConfig } from "@/components/strength";
+import { strengthEnabled } from "@/lib/strength";
 import { useI18n } from "@/lib/i18n";
 import { useCan, useCanInterview, useCanMove } from "@/lib/permissions-context";
 /* --------------------------------- card --------------------------------- */
@@ -268,6 +270,8 @@ function ApplicationDetailDialog({
           </div>
         </div>
 
+        <StrengthBreakdown candidateId={app.candidateId} />
+
         {/* History */}
         <div className="rounded-lg border p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -404,6 +408,11 @@ export function ApplicationsView({
   // how the applications are shown: board | list | cards | steps (remembered in this browser)
   const [mode, setMode] = useState<ViewMode>("board");
   const [listStage, setListStage] = useState("all");
+  // strongest candidates first (when the strength is set up in Settings) or newest first
+  const strengthCfg = useStrengthConfig();
+  const strengthOn = strengthEnabled(strengthCfg);
+  const [sortChoice, setSortChoice] = useState<"strength" | "recent" | null>(null);
+  const sort: "strength" | "recent" = strengthOn ? sortChoice ?? "strength" : "recent";
   const [step, setStep] = useState<string>("Applied");
   useEffect(() => {
     try {
@@ -442,6 +451,7 @@ export function ApplicationsView({
         from: fromDate || undefined,
         to: toDate || undefined,
         q: searchKey || undefined,
+        sort,
       });
       setApps(res.items);
       setCounts(res.counts);
@@ -449,7 +459,7 @@ export function ApplicationsView({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load applications");
     }
-  }, [jobFilter, categoryFilter, titleFilter, specFilter, noteFilter, jobStatusFilter, fromDate, toDate, searchKey]);
+  }, [jobFilter, categoryFilter, titleFilter, specFilter, noteFilter, jobStatusFilter, fromDate, toDate, searchKey, sort]);
 
   useLoadEffect(load);
 
@@ -467,6 +477,7 @@ export function ApplicationsView({
         from: fromDate || undefined,
         to: toDate || undefined,
         q: searchKey || undefined,
+        sort,
         stage,
         offset: have,
       });
@@ -541,7 +552,7 @@ export function ApplicationsView({
   const stageKey = mode === "steps" ? step : listStage;
   const shownApps =
     stageKey === "all"
-      ? [...filtered].sort((a, b) => b.appliedAt.localeCompare(a.appliedAt))
+      ? [...filtered].sort((a, b) => (sort === "strength" ? (b.candidate?.strength ?? 0) - (a.candidate?.strength ?? 0) : 0) || b.appliedAt.localeCompare(a.appliedAt))
       : filtered.filter((a) => a.stage === stageKey);
   const shownTotal = stageKey === "all" ? totalApps : counts[stageKey] ?? 0;
   async function loadMoreShown() {
@@ -552,6 +563,7 @@ export function ApplicationsView({
   }
 
   return (
+    <StrengthProvider value={strengthCfg}>
     <div className="space-y-5">
       <PageHeader
         title={t("Applications")}
@@ -589,6 +601,17 @@ export function ApplicationsView({
             <p className="text-sm text-muted-foreground">
               {t(totalApps === 1 ? "{n} application" : "{n} applications", { n: totalApps })}
             </p>
+            {strengthOn && (
+              <Select value={sort} onValueChange={(v) => setSortChoice(v as "strength" | "recent")}>
+                <SelectTrigger size="sm" className="h-9 w-[170px]" aria-label={t("Sort by")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="strength">{t("Strongest first")}</SelectItem>
+                  <SelectItem value="recent">{t("Newest first")}</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             <ViewSwitcher value={mode} onChange={changeMode} />
           </div>
         </div>
@@ -808,5 +831,6 @@ export function ApplicationsView({
         }}
       />
     </div>
+    </StrengthProvider>
   );
 }

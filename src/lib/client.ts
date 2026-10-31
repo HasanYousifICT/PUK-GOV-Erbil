@@ -4,6 +4,7 @@ import type { JobCategory } from "@/lib/categories";
 import type { CandidateField, CandidateSection, ColumnType, CustomData, FieldSettings, FieldType, FileValue, ShowRule } from "@/lib/candidate-fields";
 import type { DraftData } from "@/lib/candidate-drafts";
 import type { CandidateFilters, CustomFilter } from "@/lib/candidate-filters";
+import type { StrengthConfig, StrengthLevel } from "@/lib/strength";
 
 import type { Permissions } from "@/lib/permissions";
 
@@ -184,6 +185,7 @@ export type Candidate = {
   notes: string;
   tags: string;
   code?: string | null; // candidate access code
+  strength?: number; // profile strength 0-100 (see Settings → Candidate strength)
   customData: string; // JSON map of custom field id -> value (see parseCustomData)
   createdAt: string;
   updatedAt: string;
@@ -226,6 +228,16 @@ export type Interview = {
   };
 };
 
+export type StrengthExplain = {
+  enabled: boolean;
+  score: number;
+  level: StrengthLevel;
+  strongMin: number;
+  mediumMin: number;
+  items: { fieldId: string; label: string; labelCkb: string; fieldType: string; rule: CustomFilter; met: boolean; weight: number }[];
+};
+export type StrengthSaved = { config: StrengthConfig; updated: number; total: number; levels: Record<StrengthLevel, number> };
+
 export type RequirementsPreview = { total: number; matching: number; perRule: number[]; truncated: boolean };
 
 export type Application = {
@@ -236,7 +248,7 @@ export type Application = {
   status: "Active" | "Hired" | "Rejected";
   appliedAt: string;
   updatedAt: string;
-  candidate?: Pick<Candidate, "id" | "name" | "email" | "phone" | "skills" | "experience" | "location" | "resume" | "resumeName" | "code">;
+  candidate?: Pick<Candidate, "id" | "name" | "email" | "phone" | "skills" | "experience" | "location" | "resume" | "resumeName" | "code" | "strength">;
   job?: Pick<Job, "id" | "title" | "location" | "employmentType" | "status" | "categoryId">;
   history?: ApplicationHistoryEntry[];
   interviews?: Interview[];
@@ -373,6 +385,9 @@ export const apiClient = {
   jobDuplicates: (title: string, categoryId: string, excludeId?: string) =>
     api<{ count: number }>(`/api/jobs/duplicates${qs({ title, categoryId, excludeId })}`),
   jobSpecialists: () => api<string[]>("/api/jobs/specialists"),
+  getStrengthConfig: () => api<StrengthConfig>("/api/strength-config"),
+  setStrengthConfig: (c: StrengthConfig) => api<StrengthSaved>("/api/strength-config", { method: "PUT", body: JSON.stringify(c) }),
+  candidateStrength: (id: string) => api<StrengthExplain>(`/api/candidates/${id}/strength`),
   /** How many candidates meet a set of job requirements (all together and each one on its own). */
   previewRequirements: (requirements: CustomFilter[]) =>
     api<RequirementsPreview>("/api/jobs/requirements-preview", { method: "POST", body: JSON.stringify({ requirements }) }),
@@ -576,7 +591,7 @@ export const apiClient = {
     api<Application[]>(`/api/applications${qs({ ...filters })}`),
   /** The pipeline board: a limited number of applications per stage plus the full count of each stage. */
   getApplication: (id: string) => api<Application>(`/api/applications/${id}`),
-  listBoard: (f: { jobId?: string; categoryId?: string; title?: string; specialist?: string; specialistNote?: string; jobStatus?: string; from?: string; to?: string; q?: string; stage?: string; offset?: number; perStage?: number }) =>
+  listBoard: (f: { jobId?: string; categoryId?: string; title?: string; specialist?: string; specialistNote?: string; jobStatus?: string; from?: string; to?: string; q?: string; stage?: string; offset?: number; perStage?: number; sort?: string }) =>
     api<{ items: Application[]; counts: Record<string, number> }>(`/api/applications${qs({ ...f, board: 1 })}`),
   bulkAddToJob: (candidateIds: string[], jobId: string) =>
     api<BulkAddResult>("/api/applications/bulk", { method: "POST", body: JSON.stringify({ candidateIds, jobId }) }),

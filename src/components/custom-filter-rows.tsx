@@ -68,6 +68,7 @@ export function CustomFilterRows({
   hint,
   counts,
   total,
+  weights,
 }: {
   value: CustomFilter[];
   onChange: (v: CustomFilter[]) => void;
@@ -77,6 +78,8 @@ export function CustomFilterRows({
   /** optional: how many candidates meet each condition on its own (same order as `value`) */
   counts?: number[] | null;
   total?: number;
+  /** show a "points" box on every condition (used by the candidate strength setup) */
+  weights?: boolean;
 }) {
   const { t, locale } = useI18n();
   const typeLabels = useTypeLabels();
@@ -117,8 +120,9 @@ export function CustomFilterRows({
   function addFilter(id: string) {
     const f = allFields.find((x) => x.id === id);
     if (!f) return;
-    set({ custom: [...custom, { fieldId: f.id, op: opsOf(f)[0], value: "" }] });
+    set({ custom: [...custom, { fieldId: f.id, op: opsOf(f)[0], value: "", ...(weights ? { weight: 10 } : {}) }] });
   }
+  const totalPoints = custom.reduce((a, c) => a + (c.weight && c.weight > 0 ? c.weight : 10), 0);
   const fieldOf = (id: string): CandidateField | undefined => allFields.find((f) => f.id === id);
 
   return (
@@ -263,6 +267,23 @@ export function CustomFilterRows({
                             )}
                           </>
                         )}
+                      </div>
+                    )}
+
+                    {weights && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{t("Points")}</span>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={100}
+                          dir="ltr"
+                          className="h-8 w-20"
+                          aria-label={t("Points")}
+                          value={c.weight ?? ""}
+                          onChange={(e) => updateCustom(i, { weight: e.target.value === "" ? undefined : Number(e.target.value) })}
+                        />
+                        <span className="tabular-nums">{t("{n}% of the total", { n: Math.round(((c.weight && c.weight > 0 ? c.weight : 10) / Math.max(1, totalPoints)) * 100) })}</span>
                       </div>
                     )}
 

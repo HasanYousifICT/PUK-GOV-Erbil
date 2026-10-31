@@ -105,6 +105,7 @@ model Candidate {
   customData   String   @default("{}") // JSON map: custom field id -> value
   code         String?  @unique // candidate access code (set when the candidate applies through the portal)
   hasAccess    Boolean  @default(false) // has a candidate login (kept in step with CandidateAccount; lets the list filter fast)
+  strength     Int      @default(0) // profile strength 0-100, calculated from the strength conditions in Settings (0 when not set up)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   applications Application[]
@@ -113,6 +114,7 @@ model Candidate {
   @@index([name])
   @@index([phone])
   @@index([hasAccess])
+  @@index([strength])
 }
 
 model Application {
@@ -206,6 +208,7 @@ model Organization {
   version    String   @default("") // footer banner: version
   copyright  String   @default("") // footer banner: copyright text
   maxApplications Int     @default(0) // most jobs one candidate may apply to (0 = no limit)
+  strengthConfig String @default("") // JSON {rules:[{fieldId,op,value,values,weight}], strongMin, mediumMin} — how candidate profile strength is calculated
   categoriesCleared Boolean @default(false) // the admin deleted the whole classification: don't re-add the starter data
   updatedAt  DateTime @updatedAt
 }

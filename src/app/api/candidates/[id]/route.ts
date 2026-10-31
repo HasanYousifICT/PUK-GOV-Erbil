@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { locationFromAnswers, parseCustomData } from "@/lib/candidate-fields";
 import { deleteFiles, fileKeysOf, loadFields, validateCustomData } from "@/lib/candidate-custom";
+import { refreshStrength } from "@/lib/strength-server";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -85,6 +86,7 @@ export async function PUT(req: Request, { params }: Params) {
       include: { _count: { select: { applications: true } } },
     });
     await deleteFiles(removedFiles);
+    await refreshStrength(candidate.id);
     if (data.photo !== undefined && existing.photo && existing.photo !== data.photo) await deleteFiles([existing.photo]);
     return json(candidate);
   });

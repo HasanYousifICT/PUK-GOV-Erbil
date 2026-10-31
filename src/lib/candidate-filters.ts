@@ -9,6 +9,8 @@ export type CustomFilter = {
   value2?: string;
   /** the chosen options of a "any of / none of / includes any / includes all" condition */
   values?: string[];
+  /** points of this condition (only used by the profile-strength setup) */
+  weight?: number;
 };
 
 /** Operators that take a list of values instead of one value. */

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { refreshStrength } from "@/lib/strength-server";
 import { ApiError, handle, json, readJson, str } from "@/lib/api";
 import { locationFromAnswers } from "@/lib/candidate-fields";
 import { loadFields, validateCustomData } from "@/lib/candidate-custom";
@@ -62,6 +63,7 @@ export async function POST(req: Request) {
         },
         select: { id: true },
       });
+      await refreshStrength(candidate.id);
     }
 
     if (jobId) {
