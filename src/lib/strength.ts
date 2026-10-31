@@ -14,8 +14,12 @@ export type StrengthFieldRule = {
   by?: "count" | "best";
 };
 
+/** "priority": the first field decides, the next ones only break ties (a Master beats a Bachelor whatever the experience). "equal": every field counts the same (average). */
+export type StrengthMode = "priority" | "equal";
+
 export type StrengthConfig = {
   fields: StrengthFieldRule[];
+  mode: StrengthMode;
   /** score from which an applicant is "Strong" / "Medium" (below mediumMin it is "Weak") */
   strongMin: number;
   mediumMin: number;
@@ -64,7 +68,7 @@ export function parseStrengthConfig(raw: unknown): StrengthConfig {
   let mediumMin = clampInt(r.mediumMin, 1, 99, DEFAULT_MEDIUM_MIN);
   if (mediumMin >= strongMin) mediumMin = Math.max(1, strongMin - 1);
   if (strongMin <= mediumMin) strongMin = mediumMin + 1;
-  return { fields, strongMin, mediumMin };
+  return { fields, mode: r.mode === "equal" ? "equal" : "priority", strongMin, mediumMin };
 }
 
 export const strengthEnabled = (c: StrengthConfig | null | undefined): boolean => !!c && c.fields.length > 0;
@@ -152,7 +156,7 @@ export type StrengthRow = { id: string; customData: CustomData };
 
 /**
  * Score every applicant of ONE job. Per field the applicants are ranked (ties share the same rank); the score is
- * the average rank over the chosen fields, 0-100. A lone applicant (or everyone equal) is neutral: 50.
+ * 0-100: by priority (first field decides, the next ones break ties) or the average rank over the chosen fields. A lone applicant (or everyone equal) is neutral: 50.
  */
 export function scoreApplicants(
   cfg: StrengthConfig,
@@ -167,6 +171,7 @@ export function scoreApplicants(
   const data = rows.map((r) => withCalculated(fields, r.customData));
   const per = rows.map(() => [] as StrengthPart[]);
   const sums = rows.map(() => 0);
+  const tuples = rows.map(() => [] as number[]);
 
   for (const rule of rules) {
     const field = byId.get(rule.fieldId)!;
@@ -187,6 +192,7 @@ export function scoreApplicants(
       below.set(k, run);
       run += counts.get(k)!;
     }
+    keys.forEach((k, i) => tuples[i].push(k));
     keys.forEach((k, i) => {
       const b = below.get(k)!;
       const eq = counts.get(k)!;
@@ -196,10 +202,31 @@ export function scoreApplicants(
     });
   }
 
+  // priority: rank the applicants by all fields together, the first field first
+  const overall: number[] | null =
+    cfg.mode === "priority" && rules.length > 1
+      ? (() => {
+          const cmp = (a: number[], b: number[]) => {
+            for (let k = 0; k < a.length; k++) if (a[k] !== b[k]) return a[k] < b[k] ? -1 : 1;
+            return 0;
+          };
+          return tuples.map((a) => {
+            let below = 0;
+            let eq = 0;
+            for (const b of tuples) {
+              const c = cmp(b, a);
+              if (c < 0) below++;
+              else if (c === 0) eq++;
+            }
+            return n === 1 ? 0.5 : (below + 0.5 * (eq - 1)) / (n - 1);
+          });
+        })()
+      : null;
+
   rows.forEach((r, i) => {
     const parts = per[i];
     // average of the exact ranks, not of the rounded ones
-    const score = parts.length ? Math.round((sums[i] / parts.length) * 100) : 0;
+    const score = parts.length ? Math.round((overall ? overall[i] : sums[i] / parts.length) * 100) : 0;
     out.set(r.id, { score, parts });
   });
   return out;

@@ -96,7 +96,7 @@ export function StrengthSettings() {
     if (!cfg) return;
     setBusy(true);
     try {
-      const r = await apiClient.setStrengthConfig({ fields: rows, strongMin: strongN, mediumMin: mediumN });
+      const r = await apiClient.setStrengthConfig({ fields: rows, mode: cfg.mode, strongMin: strongN, mediumMin: mediumN });
       setStrengthCache(r.config);
       setCfg(r.config);
       setStrongMin(String(r.config.strongMin));
@@ -165,7 +165,10 @@ export function StrengthSettings() {
           return (
             <div key={r.fieldId} className="rounded-lg border p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{fieldLabel(f, locale)}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                  {cfg.mode === "priority" && rows.length > 1 && <span className="me-2 rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-semibold text-primary">{t("Priority {n}", { n: rows.indexOf(r) + 1 })}</span>}
+                  {fieldLabel(f, locale)}
+                </span>
                 {isMulti && (
                   <select
                     className="h-8 rounded-md border bg-background px-2 text-sm"
@@ -228,7 +231,22 @@ export function StrengthSettings() {
             </div>
           );
         })}
-        {rows.length > 1 && <p className="text-xs text-muted-foreground">{t("Every chosen field counts equally.")}</p>}
+        {rows.length > 1 && (
+          <div className="space-y-1.5 rounded-lg bg-muted/40 p-3">
+            <Label className="text-xs">{t("How the fields are combined")}</Label>
+            <select
+              className="h-8 w-full rounded-md border bg-background px-2 text-sm"
+              value={cfg.mode}
+              onChange={(e) => setCfg({ ...cfg, mode: e.target.value === "equal" ? "equal" : "priority" })}
+            >
+              <option value="priority">{t("By priority: the first field decides, the next ones only break ties")}</option>
+              <option value="equal">{t("Equal: every field counts the same (average)")}</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              {cfg.mode === "priority" ? t("Use the arrows to set the priority: the field at the top matters most.") : t("Every chosen field counts equally.")}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="space-y-3 rounded-xl border bg-card p-4 shadow-sm">

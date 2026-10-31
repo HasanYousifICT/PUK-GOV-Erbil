@@ -1193,4 +1193,9 @@ export const ckb: Record<string, string> = {
   "Not uploaded is stronger": "بارنەکراو بەهێزترە",
   "The only applicant of {job} so far, so there is nobody to compare with": "تاکو ئێستا تەنها داواکاری «{job}»ە، بۆیە کەسێک نییە بەراورد بکرێت",
   "Compared with {n} applicants of {job}": "بەراورد لەگەڵ {n} داواکاری «{job}»",
+  "How the fields are combined": "چۆنیەتی تێکەڵکردنی خانەکان",
+  "By priority: the first field decides, the next ones only break ties": "بەپێی لەپێشینە: خانەی یەکەم بڕیار دەدات، ئەوانی تر تەنها کاتی یەکسان بوون",
+  "Equal: every field counts the same (average)": "یەکسان: هەموو خانەکان وەک یەک هەژمار دەکرێن (تێکڕا)",
+  "Use the arrows to set the priority: the field at the top matters most.": "بە تیرەکان لەپێشینە دیاری بکە: خانەی سەرەوە گرنگترینە.",
+  "Priority {n}": "لەپێشینەی {n}",
 };
