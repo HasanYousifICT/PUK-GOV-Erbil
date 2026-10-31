@@ -112,7 +112,7 @@ export function StrengthBreakdown({ applicationId }: { applicationId: string }) 
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border">
         <div className={cn("h-full rounded-full", LEVEL_STYLE[data.level].bar)} style={{ width: `${data.score}%` }} />
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">{t("Compared with {n} applicants of this job", { n: data.applicants })}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{data.applicants <= 1 ? t("The only applicant of {job} so far, so there is nobody to compare with", { job: data.jobTitle }) : t("Compared with {n} applicants of {job}", { n: data.applicants, job: data.jobTitle })}</p>
       <ul className="mt-2 space-y-1.5">
         {data.items.map((x) => (
           <li key={x.fieldId} className="flex items-start gap-2 text-sm">

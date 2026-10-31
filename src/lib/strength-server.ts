@@ -96,10 +96,10 @@ export type StrengthItem = StrengthPart & { label: string; labelCkb: string; fie
 /** The score of one application with, per chosen field, its answer and its place among the job's applicants. */
 export async function explainStrength(applicationId: string) {
   const cfg = await loadStrengthConfig();
-  const app = await db.application.findUnique({ where: { id: applicationId }, select: { id: true, jobId: true, strength: true, candidate: { select: { customData: true } } } });
+  const app = await db.application.findUnique({ where: { id: applicationId }, select: { id: true, jobId: true, strength: true, job: { select: { title: true } }, candidate: { select: { customData: true } } } });
   if (!app) return null;
   const base = { strongMin: cfg.strongMin, mediumMin: cfg.mediumMin };
-  if (!strengthEnabled(cfg)) return { enabled: false as const, score: 0, level: "weak" as StrengthLevel, applicants: 0, items: [] as StrengthItem[], ...base };
+  if (!strengthEnabled(cfg)) return { enabled: false as const, score: 0, level: "weak" as StrengthLevel, applicants: 0, jobTitle: "", items: [] as StrengthItem[], ...base };
   const fields = await loadFields();
   const apps = (await db.application.findMany({ where: { jobId: app.jobId }, select: APP_SELECT })) as unknown as Loaded[];
   const scored = scoreApplicants(cfg, fields, apps.map((a) => ({ id: a.id, customData: parseCustomData(a.candidate?.customData) })));
@@ -117,5 +117,5 @@ export async function explainStrength(applicationId: string) {
       value: displayValue(own[p.fieldId]),
     };
   });
-  return { enabled: true as const, score, level: levelOf(score, cfg), applicants: apps.length, items, ...base };
+  return { enabled: true as const, score, level: levelOf(score, cfg), applicants: apps.length, jobTitle: (app as unknown as { job?: { title?: string } }).job?.title ?? "", items, ...base };
 }

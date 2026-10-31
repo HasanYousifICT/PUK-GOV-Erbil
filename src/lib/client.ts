@@ -234,6 +234,7 @@ export type StrengthExplain = {
   strongMin: number;
   mediumMin: number;
   applicants: number;
+  jobTitle: string;
   items: { fieldId: string; label: string; labelCkb: string; fieldType: string; dir: "high" | "low"; value: string; empty: boolean; position: number; of: number; rank: number }[];
 };
 export type StrengthSaved = { config: StrengthConfig; updated: number; total: number; levels: Record<StrengthLevel, number> };

@@ -1191,4 +1191,6 @@ export const ckb: Record<string, string> = {
   "Oldest date is stronger": "کۆنترین بەروار بەهێزترە",
   "Uploaded is stronger": "بارکراو بەهێزترە",
   "Not uploaded is stronger": "بارنەکراو بەهێزترە",
+  "The only applicant of {job} so far, so there is nobody to compare with": "تاکو ئێستا تەنها داواکاری «{job}»ە، بۆیە کەسێک نییە بەراورد بکرێت",
+  "Compared with {n} applicants of {job}": "بەراورد لەگەڵ {n} داواکاری «{job}»",
 };
