@@ -185,7 +185,6 @@ export type Candidate = {
   notes: string;
   tags: string;
   code?: string | null; // candidate access code
-  strength?: number; // profile strength 0-100 (see Settings → Candidate strength)
   customData: string; // JSON map of custom field id -> value (see parseCustomData)
   createdAt: string;
   updatedAt: string;
@@ -234,7 +233,8 @@ export type StrengthExplain = {
   level: StrengthLevel;
   strongMin: number;
   mediumMin: number;
-  items: { fieldId: string; label: string; labelCkb: string; fieldType: string; rule: CustomFilter; met: boolean; weight: number }[];
+  applicants: number;
+  items: { fieldId: string; label: string; labelCkb: string; fieldType: string; dir: "high" | "low"; value: string; empty: boolean; position: number; of: number; rank: number }[];
 };
 export type StrengthSaved = { config: StrengthConfig; updated: number; total: number; levels: Record<StrengthLevel, number> };
 
@@ -248,7 +248,8 @@ export type Application = {
   status: "Active" | "Hired" | "Rejected";
   appliedAt: string;
   updatedAt: string;
-  candidate?: Pick<Candidate, "id" | "name" | "email" | "phone" | "skills" | "experience" | "location" | "resume" | "resumeName" | "code" | "strength">;
+  candidate?: Pick<Candidate, "id" | "name" | "email" | "phone" | "skills" | "experience" | "location" | "resume" | "resumeName" | "code">;
+  strength?: number; // rank among the job's applicants 0-100 (see Settings → Candidate strength)
   job?: Pick<Job, "id" | "title" | "location" | "employmentType" | "status" | "categoryId">;
   history?: ApplicationHistoryEntry[];
   interviews?: Interview[];
@@ -387,7 +388,7 @@ export const apiClient = {
   jobSpecialists: () => api<string[]>("/api/jobs/specialists"),
   getStrengthConfig: () => api<StrengthConfig>("/api/strength-config"),
   setStrengthConfig: (c: StrengthConfig) => api<StrengthSaved>("/api/strength-config", { method: "PUT", body: JSON.stringify(c) }),
-  candidateStrength: (id: string) => api<StrengthExplain>(`/api/candidates/${id}/strength`),
+  applicationStrength: (id: string) => api<StrengthExplain>(`/api/applications/${id}/strength`),
   /** How many candidates meet a set of job requirements (all together and each one on its own). */
   previewRequirements: (requirements: CustomFilter[]) =>
     api<RequirementsPreview>("/api/jobs/requirements-preview", { method: "POST", body: JSON.stringify({ requirements }) }),

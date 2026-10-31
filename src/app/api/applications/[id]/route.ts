@@ -1,6 +1,7 @@
 import { canMove } from "@/lib/stage-moves";
 import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import { db } from "@/lib/db";
+import { refreshJobStrength } from "@/lib/strength-server";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { isValidStage, statusForStage } from "@/lib/constants";
 
@@ -75,6 +76,7 @@ export async function DELETE(req: Request, { params }: Params) {
     const existing = await db.application.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Application not found");
     await db.application.delete({ where: { id } });
+    await refreshJobStrength(existing.jobId);
     return json({ ok: true });
   });
 }

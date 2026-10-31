@@ -220,7 +220,7 @@ export function ApplicationCard({
           </button>
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
             <CodeChip code={facts.code} />
-            <StrengthBadge score={app.candidate?.strength} config={strength} />
+            <StrengthBadge score={app.strength} config={strength} />
           </div>
         </div>
         {!overlay && <ApplicationMenu app={app} actions={actions} />}
@@ -388,8 +388,8 @@ export function ApplicationsList({ apps, actions }: { apps: Application[]; actio
                 {showStrength && (
                   <td className="px-4 py-2.5">
                     <div className="w-28 space-y-1">
-                      <StrengthBadge score={app.candidate?.strength} config={strength} />
-                      <StrengthBar score={app.candidate?.strength} config={strength} />
+                      <StrengthBadge score={app.strength} config={strength} />
+                      <StrengthBar score={app.strength} config={strength} />
                     </div>
                   </td>
                 )}
@@ -467,7 +467,7 @@ export function ApplicationsCards({ apps, actions }: { apps: Application[]; acti
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   <CodeChip code={f.code} />
                   <StageBadge stage={app.stage} className="text-[10px]" />
-                  <StrengthBadge score={app.candidate?.strength} config={strength} />
+                  <StrengthBadge score={app.strength} config={strength} />
                 </div>
               </div>
               <ApplicationMenu app={app} actions={actions} />
@@ -497,7 +497,7 @@ export function ApplicationsCards({ apps, actions }: { apps: Application[]; acti
               )}
             </div>
 
-            <StrengthBar score={app.candidate?.strength} config={strength} className="mt-3" />
+            <StrengthBar score={app.strength} config={strength} className="mt-3" />
 
             <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
@@ -606,7 +606,7 @@ export function StepList({ step, apps, actions }: { step: string; apps: Applicat
                 </button>
                 <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                   <CodeChip code={f.code} />
-                  <StrengthBadge score={app.candidate?.strength} config={strength} />
+                  <StrengthBadge score={app.strength} config={strength} />
                 </div>
               </div>
             </div>

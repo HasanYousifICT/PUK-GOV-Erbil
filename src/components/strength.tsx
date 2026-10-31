@@ -3,10 +3,9 @@
 // Candidate profile strength on screen: the badge, the bar and the explanation of one score.
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { Check, Gauge, X } from "lucide-react";
+import { Gauge } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient, StrengthExplain } from "@/lib/client";
-import { describeRequirement } from "@/lib/job-requirements";
 import { levelOf, strengthEnabled, StrengthConfig, StrengthLevel } from "@/lib/strength";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -83,30 +82,28 @@ export function StrengthBar({ score, config, className }: { score: number | unde
   );
 }
 
-/** The score of one candidate with every condition: met or not, and its points. Used in the application details. */
-export function StrengthBreakdown({ candidateId }: { candidateId: string }) {
+/** The score of one application: per chosen field, the applicant's answer and place among the job's applicants. */
+export function StrengthBreakdown({ applicationId }: { applicationId: string }) {
   const { t, locale } = useI18n();
   const label = useLevelLabel();
   const [data, setData] = useState<StrengthExplain | null | undefined>(undefined);
   useEffect(() => {
     let live = true;
     apiClient
-      .candidateStrength(candidateId)
+      .applicationStrength(applicationId)
       .then((r) => live && setData(r))
       .catch(() => live && setData(null));
     return () => {
       live = false;
     };
-  }, [candidateId]);
+  }, [applicationId]);
 
   if (data === undefined) return <Skeleton className="h-24 w-full rounded-lg" />;
   if (!data || !data.enabled) return null;
-  const total = data.items.reduce((a, x) => a + x.weight, 0);
-  const earned = data.items.filter((x) => x.met).reduce((a, x) => a + x.weight, 0);
   return (
     <div className="rounded-lg border p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Profile strength")}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Strength among applicants")}</p>
         <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold", LEVEL_STYLE[data.level].badge)}>
           <Gauge className="h-3.5 w-3.5" />
           {label(data.level)} · <span dir="ltr">{data.score}%</span>
@@ -115,19 +112,16 @@ export function StrengthBreakdown({ candidateId }: { candidateId: string }) {
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border">
         <div className={cn("h-full rounded-full", LEVEL_STYLE[data.level].bar)} style={{ width: `${data.score}%` }} />
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">{t("{earned} of {total} points", { earned, total })}</p>
-      <ul className="mt-2 space-y-1">
-        {data.items.map((x, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm">
-            <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full", x.met ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground")}>
-              {x.met ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-            </span>
-            <span className={cn("min-w-0 flex-1 break-words", !x.met && "text-muted-foreground")}>
-              {describeRequirement({ rule: x.rule, label: x.label, labelCkb: x.labelCkb, fieldType: x.fieldType }, t, locale)}
+      <p className="mt-1 text-xs text-muted-foreground">{t("Compared with {n} applicants of this job", { n: data.applicants })}</p>
+      <ul className="mt-2 space-y-1.5">
+        {data.items.map((x) => (
+          <li key={x.fieldId} className="flex items-start gap-2 text-sm">
+            <span className="min-w-0 flex-1 break-words">
+              <span className="font-medium">{locale === "ckb" && x.labelCkb ? x.labelCkb : x.label}</span>
+              <span className={cn("ms-1.5", x.empty && "text-muted-foreground")}>{x.empty ? t("Not answered") : x.value}</span>
             </span>
             <span className="shrink-0 text-xs tabular-nums text-muted-foreground" dir="ltr">
-              {x.met ? "+" : ""}
-              {x.weight}
+              {t("#{n} of {total}", { n: x.position, total: x.of })}
             </span>
           </li>
         ))}

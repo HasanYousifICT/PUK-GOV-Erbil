@@ -3,7 +3,7 @@ import { loadStrengthConfig, recomputeAllStrength, saveStrengthConfig } from "@/
 
 export const dynamic = "force-dynamic";
 
-/** GET /api/strength-config — how candidate profile strength is calculated (every signed-in user: the screens need it to label scores). */
+/** GET /api/strength-config — which profile fields rank the applicants (every signed-in user: the screens need it to label scores). */
 export async function GET(req: Request) {
   return handle(async () => {
     await requireAuth(req);
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   });
 }
 
-/** PUT /api/strength-config { rules, strongMin, mediumMin } — administrators only. Saves and recalculates every candidate. */
+/** PUT /api/strength-config { fields:[{fieldId,dir}], strongMin, mediumMin } — administrators only. Saves and re-ranks every job. */
 export async function PUT(req: Request) {
   return handle(async () => {
     await requireAdmin(req);

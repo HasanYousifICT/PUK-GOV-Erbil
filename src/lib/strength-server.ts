@@ -1,13 +1,9 @@
-// Server side of the candidate strength: the saved setup, recalculation and the explanation of one score.
+// Server side of the applicant strength: the saved setup, ranking the applicants of a job, and the explanation of one score.
 
 import { db } from "@/lib/db";
 import { loadFields } from "@/lib/candidate-custom";
-import { parseCustomData } from "@/lib/candidate-fields";
-import { normalizeRequirements } from "@/lib/job-requirements-server";
-import { levelOf, parseStrengthConfig, scoreCandidate, strengthEnabled, StrengthConfig, StrengthLevel } from "@/lib/strength";
-
-const COLUMNS = { id: true, name: true, code: true, email: true, phone: true, location: true, tags: true, notes: true, customData: true, strength: true } as const;
-const BATCH = 500;
+import { displayValue, parseCustomData, CandidateField } from "@/lib/candidate-fields";
+import { levelOf, parseStrengthConfig, scoreApplicants, strengthEnabled, StrengthConfig, StrengthLevel, StrengthPart } from "@/lib/strength";
 
 export async function loadStrengthConfig(): Promise<StrengthConfig> {
   try {
@@ -18,11 +14,11 @@ export async function loadStrengthConfig(): Promise<StrengthConfig> {
   }
 }
 
-/** Validate what the admin sent (known fields, operators that suit the field) and store it. */
+/** Keep only fields that exist, then store. */
 export async function saveStrengthConfig(input: unknown): Promise<StrengthConfig> {
-  const o = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
-  const rulesJson = await normalizeRequirements(o.rules ?? []);
-  const cfg = parseStrengthConfig({ ...o, rules: JSON.parse(rulesJson) });
+  const parsed = parseStrengthConfig(input);
+  const known = new Set((await loadFields()).map((f) => f.id));
+  const cfg = { ...parsed, fields: parsed.fields.filter((f) => known.has(f.fieldId)) };
   await db.organization.upsert({
     where: { id: "org" },
     create: { id: "org", name: "OpenRecruitOS", strengthConfig: JSON.stringify(cfg) },
@@ -31,67 +27,95 @@ export async function saveStrengthConfig(input: unknown): Promise<StrengthConfig
   return cfg;
 }
 
-/** Recalculate one candidate. Never throws: a problem here must not break saving a profile. */
-export async function refreshStrength(candidateId: string): Promise<void> {
+type Loaded = { id: string; strength: number; candidate: { customData: string } };
+
+const APP_SELECT = { id: true, strength: true, candidate: { select: { customData: true } } } as const;
+
+/** Rank the applicants of one job and save the changed scores. Returns every score (for the summary). */
+async function rankJob(jobId: string, cfg: StrengthConfig, fields: CandidateField[]): Promise<{ scores: number[]; updated: number }> {
+  const apps = (await db.application.findMany({ where: { jobId }, select: APP_SELECT })) as unknown as Loaded[];
+  const scored = strengthEnabled(cfg) ? scoreApplicants(cfg, fields, apps.map((a) => ({ id: a.id, customData: parseCustomData(a.candidate?.customData) }))) : null;
+  const changes = new Map<number, string[]>();
+  const scores: number[] = [];
+  for (const a of apps) {
+    const s = scored?.get(a.id)?.score ?? 0;
+    scores.push(s);
+    if (s !== a.strength) changes.set(s, [...(changes.get(s) ?? []), a.id]);
+  }
+  let updated = 0;
+  // at most 101 different scores: one update per score instead of one per applicant
+  for (const [score, ids] of changes) {
+    await db.application.updateMany({ where: { id: { in: ids } }, data: { strength: score } });
+    updated += ids.length;
+  }
+  return { scores, updated };
+}
+
+/** Re-rank one job after an applicant joined, left or changed their profile. Never throws. */
+export async function refreshJobStrength(jobId: string): Promise<void> {
   try {
     const cfg = await loadStrengthConfig();
-    const c = await db.candidate.findUnique({ where: { id: candidateId }, select: COLUMNS });
-    if (!c) return;
-    const score = strengthEnabled(cfg) ? scoreCandidate(cfg, c as unknown as Record<string, unknown>, parseCustomData(c.customData), await loadFields()).score : 0;
-    if (score !== c.strength) await db.candidate.update({ where: { id: candidateId }, data: { strength: score } });
+    if (!strengthEnabled(cfg)) return;
+    await rankJob(jobId, cfg, await loadFields());
   } catch {
     // ignore
   }
 }
 
-/** Recalculate everyone (after the setup changed). Returns how many scores changed and how many candidates are in each level. */
+/** Re-rank every job the candidate applied to (their profile changed). Never throws. */
+export async function refreshCandidateStrength(candidateId: string): Promise<void> {
+  try {
+    const cfg = await loadStrengthConfig();
+    if (!strengthEnabled(cfg)) return;
+    const apps = await db.application.findMany({ where: { candidateId }, select: { jobId: true } });
+    const fields = await loadFields();
+    for (const jobId of new Set(apps.map((a) => a.jobId))) await rankJob(jobId, cfg, fields);
+  } catch {
+    // ignore
+  }
+}
+
+/** Re-rank everything (the setup changed). Returns how many scores changed and how many applicants are in each level. */
 export async function recomputeAllStrength(cfg: StrengthConfig): Promise<{ updated: number; total: number; levels: Record<StrengthLevel, number> }> {
-  const fields = strengthEnabled(cfg) ? await loadFields() : [];
+  const fields = await loadFields();
   const levels: Record<StrengthLevel, number> = { strong: 0, medium: 0, weak: 0 };
   let updated = 0;
   let total = 0;
-  let cursor: string | undefined;
-  for (;;) {
-    const batch = await db.candidate.findMany({
-      orderBy: { id: "asc" },
-      take: BATCH,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      select: COLUMNS,
-    });
-    if (!batch.length) break;
-    cursor = batch[batch.length - 1].id;
-    const changes = new Map<number, string[]>();
-    for (const c of batch) {
-      total++;
-      const score = strengthEnabled(cfg) ? scoreCandidate(cfg, c as unknown as Record<string, unknown>, parseCustomData(c.customData), fields).score : 0;
-      levels[levelOf(score, cfg)]++;
-      if (score !== c.strength) changes.set(score, [...(changes.get(score) ?? []), c.id]);
-    }
-    // at most 101 different scores: one update per score instead of one per candidate
-    for (const [score, ids] of changes) {
-      await db.candidate.updateMany({ where: { id: { in: ids } }, data: { strength: score } });
-      updated += ids.length;
-    }
-    if (batch.length < BATCH) break;
+  const jobs = await db.job.findMany({ select: { id: true } });
+  for (const j of jobs) {
+    const r = await rankJob(j.id, cfg, fields);
+    updated += r.updated;
+    total += r.scores.length;
+    for (const s of r.scores) levels[levelOf(s, cfg)]++;
   }
   return { updated, total, levels };
 }
 
-export type StrengthItem = { fieldId: string; label: string; labelCkb: string; fieldType: string; rule: StrengthConfig["rules"][number]; met: boolean; weight: number };
+export type StrengthItem = StrengthPart & { label: string; labelCkb: string; fieldType: string; dir: "high" | "low"; value: string };
 
-/** The score of one candidate with every condition and whether it is met (for the detail screen). */
-export async function explainStrength(candidateId: string) {
+/** The score of one application with, per chosen field, its answer and its place among the job's applicants. */
+export async function explainStrength(applicationId: string) {
   const cfg = await loadStrengthConfig();
-  const c = await db.candidate.findUnique({ where: { id: candidateId }, select: COLUMNS });
-  if (!c) return null;
-  if (!strengthEnabled(cfg)) return { enabled: false as const, score: 0, level: "weak" as StrengthLevel, strongMin: cfg.strongMin, mediumMin: cfg.mediumMin, items: [] as StrengthItem[] };
-  const { score, results } = scoreCandidate(cfg, c as unknown as Record<string, unknown>, parseCustomData(c.customData), await loadFields());
-  return {
-    enabled: true as const,
-    score,
-    level: levelOf(score, cfg),
-    strongMin: cfg.strongMin,
-    mediumMin: cfg.mediumMin,
-    items: results.map((r): StrengthItem => ({ fieldId: r.rule.fieldId, label: r.label, labelCkb: r.labelCkb, fieldType: r.fieldType, rule: r.rule, met: r.met, weight: r.rule.weight ?? 10 })),
-  };
+  const app = await db.application.findUnique({ where: { id: applicationId }, select: { id: true, jobId: true, strength: true, candidate: { select: { customData: true } } } });
+  if (!app) return null;
+  const base = { strongMin: cfg.strongMin, mediumMin: cfg.mediumMin };
+  if (!strengthEnabled(cfg)) return { enabled: false as const, score: 0, level: "weak" as StrengthLevel, applicants: 0, items: [] as StrengthItem[], ...base };
+  const fields = await loadFields();
+  const apps = (await db.application.findMany({ where: { jobId: app.jobId }, select: APP_SELECT })) as unknown as Loaded[];
+  const scored = scoreApplicants(cfg, fields, apps.map((a) => ({ id: a.id, customData: parseCustomData(a.candidate?.customData) })));
+  const mine = scored.get(app.id);
+  const own = parseCustomData(app.candidate?.customData);
+  const score = mine?.score ?? 0;
+  const items: StrengthItem[] = (mine?.parts ?? []).map((p) => {
+    const f = fields.find((x) => x.id === p.fieldId)!;
+    return {
+      ...p,
+      label: f.label,
+      labelCkb: f.labelCkb,
+      fieldType: f.type,
+      dir: cfg.fields.find((r) => r.fieldId === p.fieldId)?.dir ?? "high",
+      value: displayValue(own[p.fieldId]),
+    };
+  });
+  return { enabled: true as const, score, level: levelOf(score, cfg), applicants: apps.length, items, ...base };
 }

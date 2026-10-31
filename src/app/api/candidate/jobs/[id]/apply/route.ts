@@ -1,5 +1,6 @@
 import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import { db } from "@/lib/db";
+import { refreshJobStrength } from "@/lib/strength-server";
 import { ApiError, handle, json, requireCandidate } from "@/lib/api-candidate";
 import { checkJob, getMaxApplications, requireProfile } from "@/lib/candidate-jobs";
 
@@ -32,6 +33,7 @@ export async function POST(req: Request, { params }: Params) {
       const app = await tx.application.create({ data: { candidateId: candidate.id, jobId: job.id, stage: "Applied" } });
       await tx.applicationHistory.create({ data: { applicationId: app.id, previousStage: "", newStage: "Applied" } });
     });
+    await refreshJobStrength(job.id);
     await notifyUsers(await usersWith("applications"), "portal_applied", { candidate: candidate.name, job: job.title }, { view: "applications" });
     return json({ ok: true }, 201);
   });

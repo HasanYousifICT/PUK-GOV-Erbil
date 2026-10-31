@@ -2,7 +2,6 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { locationFromAnswers, parseCustomData, withCalculated } from "@/lib/candidate-fields";
-import { refreshStrength } from "@/lib/strength-server";
 import { cleanValues, CandidateFilters, CustomFilter, isCustomFilterActive, isStdField, matchesCustomFilter, matchesStdFilter } from "@/lib/candidate-filters";
 import { isValidStage } from "@/lib/constants";
 import { loadFields, validateCustomData } from "@/lib/candidate-custom";
@@ -226,7 +225,6 @@ export async function POST(req: Request) {
       },
       include: { _count: { select: { applications: true } } },
     });
-    await refreshStrength(candidate.id);
     return json(candidate, 201);
   });
 }

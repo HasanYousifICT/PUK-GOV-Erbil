@@ -1,5 +1,6 @@
 import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import { db } from "@/lib/db";
+import { refreshJobStrength } from "@/lib/strength-server";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 
 const MAX_BATCH = 1000;
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
       )
     );
 
+    if (toCreate.length) await refreshJobStrength(jobId);
     for (const cid of toCreate) await notifyCandidate(cid, "app_added", { job: job.title }, { tab: "mine" });
     return json({
       created: toCreate.length,

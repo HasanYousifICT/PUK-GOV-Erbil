@@ -1,10 +1,11 @@
 import { notifyCandidate, notifyUsers, usersWith } from "@/lib/notify-server";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { refreshJobStrength } from "@/lib/strength-server";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 
 const APP_INCLUDE = {
-  candidate: { select: { id: true, name: true, email: true, phone: true, skills: true, experience: true, location: true, resume: true, resumeName: true, code: true, strength: true } },
+  candidate: { select: { id: true, name: true, email: true, phone: true, skills: true, experience: true, location: true, resume: true, resumeName: true, code: true } },
   job: { select: { id: true, title: true, location: true, employmentType: true, status: true, categoryId: true } },
   history: { orderBy: { changedAt: "asc" as const } },
   interviews: { orderBy: { date: "desc" as const } },
@@ -76,7 +77,7 @@ export async function GET(req: Request) {
     // sort=strength: the strongest profiles first (then the newest); anything else: the newest first
     const orderBy: Prisma.ApplicationOrderByWithRelationInput[] =
       sp.get("sort") === "strength"
-        ? [{ candidate: { strength: "desc" } }, { appliedAt: "desc" }, { id: "desc" }]
+        ? [{ strength: "desc" }, { appliedAt: "desc" }, { id: "desc" }]
         : [{ appliedAt: "desc" }, { id: "desc" }];
 
     if (board) {
@@ -131,12 +132,15 @@ export async function POST(req: Request) {
         history: { create: { previousStage: "", newStage: "Applied" } },
       },
       include: {
-        candidate: { select: { id: true, name: true, email: true, phone: true, skills: true, experience: true, location: true, resume: true, resumeName: true, code: true, strength: true } },
+        candidate: { select: { id: true, name: true, email: true, phone: true, skills: true, experience: true, location: true, resume: true, resumeName: true, code: true } },
         job: { select: { id: true, title: true, location: true, employmentType: true, status: true, categoryId: true } },
         history: true,
         interviews: true,
       },
     });
+    await refreshJobStrength(jobId);
+    const fresh = await db.application.findUnique({ where: { id: application.id }, select: { strength: true } });
+    if (fresh) application.strength = fresh.strength;
     await notifyCandidate(candidateId, "app_added", { job: job.title }, { tab: "mine" });
     return json(application, 201);
   });

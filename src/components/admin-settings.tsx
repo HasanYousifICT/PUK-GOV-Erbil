@@ -415,19 +415,26 @@ function UserDialog({
                   </Button>
                 </div>
                 <div className="grid gap-1.5 sm:grid-cols-2">
-                  {ALL_MOVE_KEYS.map((k) => (
+                  {ALL_MOVE_KEYS.filter((k) => k !== BACK_KEY).map((k) => (
                     <label key={k} className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm">
                       <Checkbox
                         checked={moves.includes(k)}
                         onCheckedChange={(c) => setMoves((l) => (c ? [...new Set([...l, k])] : l.filter((x) => x !== k)))}
                       />
-                      {k === REJECT_KEY
-                        ? t("Reject a candidate (any stage)")
-                        : k === BACK_KEY
-                          ? t("Move back a stage / restore rejected")
-                          : t("{from} → {to}", { from: t(k.split(">")[0]), to: t(k.split(">")[1]) })}
+                      {k === REJECT_KEY ? t("Reject a candidate (any stage)") : t("{from} → {to}", { from: t(k.split(">")[0]), to: t(k.split(">")[1]) })}
                     </label>
                   ))}
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{t("Allow moving back to a previous stage")}</p>
+                    <p className="text-xs text-muted-foreground">{t("Also lets this user restore a rejected candidate back into the pipeline.")}</p>
+                  </div>
+                  <Switch
+                    checked={moves.includes(BACK_KEY)}
+                    onCheckedChange={(c) => setMoves((l) => (c ? [...new Set([...l, BACK_KEY])] : l.filter((x) => x !== BACK_KEY)))}
+                    aria-label={t("Allow moving back to a previous stage")}
+                  />
                 </div>
               </div>
             )}

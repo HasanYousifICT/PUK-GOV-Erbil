@@ -270,7 +270,7 @@ function ApplicationDetailDialog({
           </div>
         </div>
 
-        <StrengthBreakdown candidateId={app.candidateId} />
+        <StrengthBreakdown applicationId={app.id} />
 
         {/* History */}
         <div className="rounded-lg border p-3">
@@ -552,7 +552,7 @@ export function ApplicationsView({
   const stageKey = mode === "steps" ? step : listStage;
   const shownApps =
     stageKey === "all"
-      ? [...filtered].sort((a, b) => (sort === "strength" ? (b.candidate?.strength ?? 0) - (a.candidate?.strength ?? 0) : 0) || b.appliedAt.localeCompare(a.appliedAt))
+      ? [...filtered].sort((a, b) => (sort === "strength" ? (b.strength ?? 0) - (a.strength ?? 0) : 0) || b.appliedAt.localeCompare(a.appliedAt))
       : filtered.filter((a) => a.stage === stageKey);
   const shownTotal = stageKey === "all" ? totalApps : counts[stageKey] ?? 0;
   async function loadMoreShown() {

@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { locationFromAnswers, parseCustomData } from "@/lib/candidate-fields";
 import { deleteFiles, fileKeysOf, loadFields, validateCustomData } from "@/lib/candidate-custom";
-import { refreshStrength } from "@/lib/strength-server";
+import { refreshCandidateStrength, refreshJobStrength } from "@/lib/strength-server";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -86,7 +86,7 @@ export async function PUT(req: Request, { params }: Params) {
       include: { _count: { select: { applications: true } } },
     });
     await deleteFiles(removedFiles);
-    await refreshStrength(candidate.id);
+    await refreshCandidateStrength(candidate.id);
     if (data.photo !== undefined && existing.photo && existing.photo !== data.photo) await deleteFiles([existing.photo]);
     return json(candidate);
   });
@@ -99,7 +99,9 @@ export async function DELETE(req: Request, { params }: Params) {
     const { id } = await params;
     const existing = await db.candidate.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Candidate not found");
+    const jobIds = [...new Set((await db.application.findMany({ where: { candidateId: id }, select: { jobId: true } })).map((a) => a.jobId))];
     await db.candidate.delete({ where: { id } });
+    for (const jobId of jobIds) await refreshJobStrength(jobId);
     if (existing.resume) {
       const { getStorage } = await import("@/lib/storage");
       await getStorage().delete(existing.resume);
