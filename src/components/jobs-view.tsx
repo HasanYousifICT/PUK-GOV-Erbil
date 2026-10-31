@@ -4,7 +4,7 @@ import { Pager } from "@/components/pager";
 import { JobRequirementsView } from "@/components/job-requirements-view";
 import { SearchableSelect } from "@/components/searchable-select";
 import { useJobTitles } from "@/components/job-titles";
-import { CustomFilterRows } from "@/components/custom-filter-rows";
+import { JobRequirementsBuilder } from "@/components/job-requirements-builder";
 import { CustomFilter } from "@/lib/candidate-filters";
 import { parseRequirements } from "@/lib/job-requirements";
 
@@ -346,7 +346,7 @@ export function JobFormDialog({
           )}
 
           <div className="space-y-3 rounded-lg border bg-muted/10 p-3 sm:col-span-2">
-            <CustomFilterRows
+            <JobRequirementsBuilder
               title={t("Requirements")}
               addLabel={t("Add requirement")}
               hint={t("Add the conditions a candidate's profile must meet to apply for this job. Candidates who do not meet them cannot apply.")}

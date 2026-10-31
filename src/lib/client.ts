@@ -3,7 +3,7 @@
 import type { JobCategory } from "@/lib/categories";
 import type { CandidateField, CandidateSection, ColumnType, CustomData, FieldSettings, FieldType, FileValue, ShowRule } from "@/lib/candidate-fields";
 import type { DraftData } from "@/lib/candidate-drafts";
-import type { CandidateFilters } from "@/lib/candidate-filters";
+import type { CandidateFilters, CustomFilter } from "@/lib/candidate-filters";
 
 import type { Permissions } from "@/lib/permissions";
 
@@ -226,6 +226,8 @@ export type Interview = {
   };
 };
 
+export type RequirementsPreview = { total: number; matching: number; perRule: number[]; truncated: boolean };
+
 export type Application = {
   id: string;
   candidateId: string;
@@ -371,6 +373,9 @@ export const apiClient = {
   jobDuplicates: (title: string, categoryId: string, excludeId?: string) =>
     api<{ count: number }>(`/api/jobs/duplicates${qs({ title, categoryId, excludeId })}`),
   jobSpecialists: () => api<string[]>("/api/jobs/specialists"),
+  /** How many candidates meet a set of job requirements (all together and each one on its own). */
+  previewRequirements: (requirements: CustomFilter[]) =>
+    api<RequirementsPreview>("/api/jobs/requirements-preview", { method: "POST", body: JSON.stringify({ requirements }) }),
   listJobsPage: (p: { page?: number; pageSize?: number; q?: string; status?: string; categoryId?: string; title?: string; specialist?: string; specialistNote?: string; announced?: string }) =>
     api<Paged<Job>>(`/api/jobs${qs({ pageSize: 50, ...p, page: p.page ?? 1 })}`),
   /** A short list for pickers: at most `limit` jobs matching the search. */

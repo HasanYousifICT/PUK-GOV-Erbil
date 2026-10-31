@@ -23,9 +23,12 @@ export function JobRequirementsView({ requirements, note, announced }: { require
     <>
       <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t("Requirements")}</h3>
       {lines.length > 0 ? (
-        <ul className="mt-2 list-disc space-y-1 ps-5 text-sm">
+        <ul className="mt-2 space-y-1.5">
           {lines.map((l, i) => (
-            <li key={i}>{l}</li>
+            <li key={i} className="flex items-start gap-2.5 rounded-lg border bg-muted/20 px-3 py-2 text-sm">
+              <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">{i + 1}</span>
+              <span className="min-w-0 break-words">{l}</span>
+            </li>
           ))}
         </ul>
       ) : (

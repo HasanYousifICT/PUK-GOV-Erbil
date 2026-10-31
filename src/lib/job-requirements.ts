@@ -1,7 +1,7 @@
 // Job requirements: rules checked against a candidate's profile (shared by the server and the screens).
 
 import { CandidateField, CustomData, withCalculated } from "@/lib/candidate-fields";
-import { CustomFilter, isCustomFilterActive, isStdField, matchesCustomFilter, matchesStdFilter, opNeedsValue, STD_FIELDS } from "@/lib/candidate-filters";
+import { cleanValues, CustomFilter, isCustomFilterActive, isListOp, isStdField, matchesCustomFilter, matchesStdFilter, opLabels, opNeedsValue, STD_FIELDS, valuesOf } from "@/lib/candidate-filters";
 
 export const MAX_REQUIREMENTS = 20;
 
@@ -25,6 +25,7 @@ export function parseRequirements(raw: unknown): CustomFilter[] {
       op: typeof o.op === "string" ? o.op : "",
       value: typeof o.value === "string" ? o.value.slice(0, 200) : undefined,
       value2: typeof o.value2 === "string" ? o.value2.slice(0, 200) : undefined,
+      values: cleanValues(o.values),
     };
     if (isCustomFilterActive(rule)) out.push(rule);
   }
@@ -71,25 +72,12 @@ type T = (s: string, v?: Record<string, string | number>) => string;
 
 /** "Age (years) at least 25" — one rule as a sentence (translated through `t`). */
 export function describeRequirement(r: Pick<RequirementResult, "rule" | "label" | "labelCkb" | "fieldType">, t: T, locale: string): string {
-  const ops: Record<string, string> = {
-    contains: t("contains"),
-    equals: t("equals"),
-    notEmpty: t("is filled"),
-    empty: t("is empty"),
-    eq: t("="),
-    gte: t("at least"),
-    lte: t("at most"),
-    between: t("between"),
-    is: t("is"),
-    on: t("on"),
-    after: t("on or after"),
-    before: t("on or before"),
-    includes: t("includes"),
-  };
+  const ops = opLabels(t);
   const name = locale === "ckb" && r.labelCkb ? r.labelCkb : t(r.label);
   const show = (v?: string) => (v === "yes" ? t("Yes") : v === "no" ? t("No") : (v ?? ""));
   const op = ops[r.rule.op] ?? r.rule.op;
   if (!opNeedsValue(r.rule.op)) return `${name} ${op}`;
+  if (isListOp(r.rule.op)) return `${name} ${op}: ${valuesOf(r.rule).map(show).join(", ")}`;
   if (r.rule.op === "between") return `${name} ${op} ${show(r.rule.value)} – ${show(r.rule.value2)}`;
   return `${name} ${op} ${show(r.rule.value)}`;
 }

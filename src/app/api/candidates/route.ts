@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { locationFromAnswers, parseCustomData, withCalculated } from "@/lib/candidate-fields";
-import { CandidateFilters, CustomFilter, isCustomFilterActive, isStdField, matchesCustomFilter, matchesStdFilter } from "@/lib/candidate-filters";
+import { cleanValues, CandidateFilters, CustomFilter, isCustomFilterActive, isStdField, matchesCustomFilter, matchesStdFilter } from "@/lib/candidate-filters";
 import { isValidStage } from "@/lib/constants";
 import { loadFields, validateCustomData } from "@/lib/candidate-custom";
 
@@ -41,6 +41,7 @@ function parseFilters(raw: string | null): CandidateFilters {
           op: text(r.op),
           value: typeof r.value === "string" ? r.value.slice(0, 200) : undefined,
           value2: typeof r.value2 === "string" ? r.value2.slice(0, 200) : undefined,
+          values: cleanValues(r.values),
         },
       ];
     });

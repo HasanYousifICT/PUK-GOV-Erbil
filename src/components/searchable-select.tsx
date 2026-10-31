@@ -3,7 +3,7 @@
 // A dropdown with a search box — for fields that have many choices (districts, ministries, …).
 
 import { ReactNode, useMemo, useState } from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -161,6 +161,103 @@ export function SearchablePickerButton({
             setOpen(false);
           }}
         />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** A dropdown where several options can be ticked at once (with a search box). */
+export function MultiSelect({
+  values,
+  onChange,
+  options,
+  placeholder,
+  ariaLabel,
+  className,
+}: {
+  values: string[];
+  onChange: (v: string[]) => void;
+  options: SelectOption[];
+  placeholder?: string;
+  ariaLabel?: string;
+  className?: string;
+}) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const labelOf = (v: string) => options.find((o) => o.value === v)?.label ?? v;
+  const toggle = (v: string) => onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen} modal>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          aria-label={ariaLabel}
+          className={cn("h-auto min-h-9 w-full justify-between gap-2 px-2.5 py-1 font-normal", className)}
+        >
+          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-start">
+            {values.length === 0 ? (
+              <span className="px-0.5 text-muted-foreground">{placeholder ?? t("Select one or more options")}</span>
+            ) : (
+              values.map((v) => (
+                <span key={v} className="inline-flex max-w-full items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary" dir="auto">
+                  <span className="truncate">{labelOf(v)}</span>
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    aria-label={t("Remove")}
+                    className="rounded hover:bg-primary/20"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggle(v);
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </span>
+                </span>
+              ))
+            )}
+          </span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-64 p-0">
+        <Command filter={(v, search, keywords) => (match(`${keywords?.join(" ") ?? ""}`, search) || match(v, search) ? 1 : 0)}>
+          <CommandInput placeholder={t("Search…")} />
+          <CommandList onWheel={(e) => e.stopPropagation()} className="max-h-64">
+            <CommandEmpty>{t("No results found.")}</CommandEmpty>
+            <CommandGroup>
+              {options.map((o) => {
+                const on = values.includes(o.value);
+                return (
+                  <CommandItem key={o.value} value={o.value} keywords={[o.label]} onSelect={() => toggle(o.value)}>
+                    <span className={cn("me-2 flex h-4 w-4 shrink-0 items-center justify-center rounded border", on ? "border-primary bg-primary text-primary-foreground" : "border-input")}>
+                      {on && <Check className="h-3 w-3" />}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate" dir="auto">
+                      {o.label}
+                    </span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+        <div className="flex items-center justify-between gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
+          <span>{t("{n} selected", { n: values.length })}</span>
+          <span className="flex items-center gap-1">
+            <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => onChange(options.map((o) => o.value))}>
+              {t("Select all")}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="h-7 px-2" disabled={values.length === 0} onClick={() => onChange([])}>
+              {t("Clear")}
+            </Button>
+          </span>
+        </div>
       </PopoverContent>
     </Popover>
   );
