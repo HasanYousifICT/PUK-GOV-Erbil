@@ -14,7 +14,7 @@ export type StrengthFieldRule = {
   by?: "count" | "best";
 };
 
-/** "priority": the first field decides, the next ones only break ties (a Master beats a Bachelor whatever the experience). "equal": every field counts the same (average). */
+/** "priority": the first field weighs the most, the last the least. "equal": every field counts the same (average). */
 export type StrengthMode = "priority" | "equal";
 
 export type StrengthConfig = {
@@ -155,8 +155,10 @@ export type StrengthPart = {
 export type StrengthRow = { id: string; customData: CustomData };
 
 /**
- * Score every applicant of ONE job. Per field the applicants are ranked (ties share the same rank); the score is
- * 0-100: by priority (first field decides, the next ones break ties) or the average rank over the chosen fields. A lone applicant (or everyone equal) is neutral: 50.
+ * Score every applicant of ONE job, 0-100. Per field an applicant gets full credit for the best answer (ties for the
+ * best answer all get full credit) and less the more applicants answered better. The fields are then averaged:
+ * "priority" gives the first field the biggest share (k, k-1 … 1), "equal" the same share to each. Applicants who are
+ * identical on every chosen field (or a lone applicant) are neutral: 50.
  */
 export function scoreApplicants(
   cfg: StrengthConfig,
@@ -170,7 +172,7 @@ export function scoreApplicants(
   const rules = cfg.fields.filter((r) => byId.has(r.fieldId));
   const data = rows.map((r) => withCalculated(fields, r.customData));
   const per = rows.map(() => [] as StrengthPart[]);
-  const sums = rows.map(() => 0);
+  const share = rows.map(() => [] as number[]);
   const tuples = rows.map(() => [] as number[]);
 
   for (const rule of rules) {
@@ -183,51 +185,22 @@ export function scoreApplicants(
       const k = strengthKey(field, d[rule.fieldId], rule);
       return k === null ? -Infinity : k * sign;
     });
-    const counts = new Map<number, number>();
-    for (const k of keys) counts.set(k, (counts.get(k) ?? 0) + 1);
-    const sorted = [...counts.keys()].sort((a, b) => a - b);
-    const below = new Map<number, number>();
-    let run = 0;
-    for (const k of sorted) {
-      below.set(k, run);
-      run += counts.get(k)!;
-    }
-    keys.forEach((k, i) => tuples[i].push(k));
     keys.forEach((k, i) => {
-      const b = below.get(k)!;
-      const eq = counts.get(k)!;
-      const rank = n === 1 ? 0.5 : (b + 0.5 * (eq - 1)) / (n - 1);
-      sums[i] += rank;
-      per[i].push({ fieldId: rule.fieldId, empty: k === -Infinity, position: n - b - eq + 1, of: n, rank: Math.round(rank * 100) });
+      tuples[i].push(k);
+      const position = 1 + keys.filter((x) => x > k).length; // 1 = nobody answered better
+      const sc = n === 1 ? 0.5 : (n - position) / (n - 1);
+      share[i].push(sc);
+      per[i].push({ fieldId: rule.fieldId, empty: k === -Infinity, position, of: n, rank: Math.round(sc * 100) });
     });
   }
 
-  // priority: rank the applicants by all fields together, the first field first
-  const overall: number[] | null =
-    cfg.mode === "priority" && rules.length > 1
-      ? (() => {
-          const cmp = (a: number[], b: number[]) => {
-            for (let k = 0; k < a.length; k++) if (a[k] !== b[k]) return a[k] < b[k] ? -1 : 1;
-            return 0;
-          };
-          return tuples.map((a) => {
-            let below = 0;
-            let eq = 0;
-            for (const b of tuples) {
-              const c = cmp(b, a);
-              if (c < 0) below++;
-              else if (c === 0) eq++;
-            }
-            return n === 1 ? 0.5 : (below + 0.5 * (eq - 1)) / (n - 1);
-          });
-        })()
-      : null;
-
+  const k = rules.length;
+  const weights = rules.map((_, idx) => (cfg.mode === "equal" ? 1 : k - idx));
+  const wTotal = weights.reduce((a, b) => a + b, 0);
+  const identical = tuples.every((tp) => tp.every((v, j) => v === tuples[0][j]));
   rows.forEach((r, i) => {
-    const parts = per[i];
-    // average of the exact ranks, not of the rounded ones
-    const score = parts.length ? Math.round((overall ? overall[i] : sums[i] / parts.length) * 100) : 0;
-    out.set(r.id, { score, parts });
+    const score = !k ? 0 : identical ? 50 : Math.round((share[i].reduce((a, v, j) => a + v * weights[j], 0) / wTotal) * 100);
+    out.set(r.id, { score, parts: per[i] });
   });
   return out;
 }

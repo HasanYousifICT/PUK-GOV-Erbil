@@ -1198,4 +1198,6 @@ export const ckb: Record<string, string> = {
   "Equal: every field counts the same (average)": "یەکسان: هەموو خانەکان وەک یەک هەژمار دەکرێن (تێکڕا)",
   "Use the arrows to set the priority: the field at the top matters most.": "بە تیرەکان لەپێشینە دیاری بکە: خانەی سەرەوە گرنگترینە.",
   "Priority {n}": "لەپێشینەی {n}",
+  "By priority: the first field counts the most, the last one the least": "بەپێی لەپێشینە: خانەی یەکەم زۆرترین هەژمار دەکرێت، دواینیان کەمترین",
+  "Use the arrows to set the priority: the field at the top counts the most. An applicant who is worse on only one field still keeps most of the points.": "بە تیرەکان لەپێشینە دیاری بکە: خانەی سەرەوە زۆرترین هەژمار دەکرێت. داواکارێک کە تەنها لە یەک خانەدا لاوازترە، زۆربەی خاڵەکانی دەمێنێتەوە.",
 };

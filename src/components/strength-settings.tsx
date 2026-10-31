@@ -239,11 +239,11 @@ export function StrengthSettings() {
               value={cfg.mode}
               onChange={(e) => setCfg({ ...cfg, mode: e.target.value === "equal" ? "equal" : "priority" })}
             >
-              <option value="priority">{t("By priority: the first field decides, the next ones only break ties")}</option>
+              <option value="priority">{t("By priority: the first field counts the most, the last one the least")}</option>
               <option value="equal">{t("Equal: every field counts the same (average)")}</option>
             </select>
             <p className="text-xs text-muted-foreground">
-              {cfg.mode === "priority" ? t("Use the arrows to set the priority: the field at the top matters most.") : t("Every chosen field counts equally.")}
+              {cfg.mode === "priority" ? t("Use the arrows to set the priority: the field at the top counts the most. An applicant who is worse on only one field still keeps most of the points.") : t("Every chosen field counts equally.")}
             </p>
           </div>
         )}
