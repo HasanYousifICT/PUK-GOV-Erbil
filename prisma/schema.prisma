@@ -44,6 +44,7 @@ model Job {
   announced      Boolean  @default(false) // shown in the candidate portal (to candidates who submitted their profile)
   requirements   String   @default("[]")  // JSON [{fieldId, op, value, value2}] — checked against the candidate profile before applying
   requirementsNote String @default("")    // other requirements, shown to candidates as text
+  strengthConfig String @default("")    // JSON {fields:[{fieldId,dir,weight,…}]} — this job's own candidate strength; "" = follows the general setup
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   applications   Application[]
@@ -53,6 +54,7 @@ model Job {
   @@index([categoryId])
   @@index([createdAt])
   @@index([title, categoryId])
+  @@index([strengthConfig])
 }
 
 // Job classification: a self-referencing tree of any depth (ISCO-08 levels

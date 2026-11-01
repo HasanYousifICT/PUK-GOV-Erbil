@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { normalizeJobStrength, refreshJobStrength } from "@/lib/strength-server";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
 import { normalizeRequirements } from "@/lib/job-requirements-server";
 import { resolveSpecialist } from "@/lib/job-specialist";
@@ -40,9 +41,10 @@ export async function PUT(req: Request, { params }: Params) {
     if (!existing) throw new ApiError(404, "Job not found");
 
     const data: Record<string, string | null> = {};
-    const extra: { specialist?: boolean; specialistNote?: string; announced?: boolean; requirements?: string; requirementsNote?: string } = {};
+    const extra: { specialist?: boolean; specialistNote?: string; announced?: boolean; requirements?: string; requirementsNote?: string; strengthConfig?: string } = {};
     if ("announced" in body) extra.announced = body.announced === true;
     if ("requirements" in body) extra.requirements = await normalizeRequirements(body.requirements);
+    if ("strength" in body) extra.strengthConfig = await normalizeJobStrength(body.strength);
     if ("requirementsNote" in body) extra.requirementsNote = str(body.requirementsNote).trim().slice(0, 2000);
     // a job whose title or classification is being edited must end up with a classification
     if (("title" in body || "categoryId" in body) && !("categoryId" in body) && !existing.categoryId) {
@@ -93,6 +95,7 @@ export async function PUT(req: Request, { params }: Params) {
       data: { ...data, ...extra },
       include: { _count: { select: { applications: true } } },
     });
+    if (extra.strengthConfig !== undefined && extra.strengthConfig !== existing.strengthConfig) await refreshJobStrength(id);
     return json(job);
   });
 }

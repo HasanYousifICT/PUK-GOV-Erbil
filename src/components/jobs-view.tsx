@@ -6,6 +6,9 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { useJobTitles } from "@/components/job-titles";
 import { JobRequirementsBuilder } from "@/components/job-requirements-builder";
 import { CustomFilter } from "@/lib/candidate-filters";
+import { StrengthFieldsEditor } from "@/components/strength-fields-editor";
+import { useStrengthConfig } from "@/components/strength";
+import { parseStrengthConfig, StrengthFieldRule, weightsComplete } from "@/lib/strength";
 import { parseRequirements } from "@/lib/job-requirements";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
@@ -16,6 +19,7 @@ import {
   Building2,
   CalendarDays,
   ExternalLink,
+  Gauge,
   Loader2,
   MapPin,
   MoreHorizontal,
@@ -103,6 +107,8 @@ export function JobFormDialog({
     announced: boolean;
     requirements: CustomFilter[];
     requirementsNote: string;
+    strengthOwn: boolean;
+    strengthFields: StrengthFieldRule[];
   }>({
     title: "",
     description: "",
@@ -118,7 +124,10 @@ export function JobFormDialog({
     announced: false,
     requirements: [],
     requirementsNote: "",
+    strengthOwn: false,
+    strengthFields: [],
   });
+  const generalStrength = useStrengthConfig();
   const { index: catIndex } = useCategories();
   // another job already has this title and classification: this one must be a described specialist job
   const [sameCount, setSameCount] = useState(0);
@@ -164,6 +173,8 @@ export function JobFormDialog({
         announced: job?.announced ?? false,
         requirements: parseRequirements(job?.requirements ?? "[]"),
         requirementsNote: job?.requirementsNote ?? "",
+        strengthOwn: !!job?.strengthConfig,
+        strengthFields: job?.strengthConfig ? parseStrengthConfig(job.strengthConfig).fields : [],
       });
     }
   }, [open, job]);
@@ -183,13 +194,19 @@ export function JobFormDialog({
       setError("Describe the specialist");
       return;
     }
+    if (form.strengthOwn && !weightsComplete(form.strengthFields)) {
+      setError("The percentages of the fields must add up to 100%");
+      return;
+    }
     setBusy(true);
     try {
+      const { strengthOwn, strengthFields, ...rest } = form;
+      const payload = { ...rest, strength: strengthOwn ? strengthFields : null };
       if (job) {
-        await apiClient.updateJob(job.id, form);
+        await apiClient.updateJob(job.id, payload);
         toast.success("Job updated");
       } else {
-        await apiClient.createJob(form);
+        await apiClient.createJob(payload);
         toast.success("Job created");
       }
       onOpenChange(false);
@@ -201,7 +218,7 @@ export function JobFormDialog({
     }
   }
 
-  const set = (key: Exclude<keyof typeof form, "categoryId" | "specialist" | "announced" | "requirements">) => (value: string) => setForm((f) => ({ ...f, [key]: value }));
+  const set = (key: Exclude<keyof typeof form, "categoryId" | "specialist" | "announced" | "requirements" | "strengthOwn" | "strengthFields">) => (value: string) => setForm((f) => ({ ...f, [key]: value }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -365,6 +382,38 @@ export function JobFormDialog({
             </div>
           </div>
 
+          <div className="space-y-3 rounded-lg border bg-muted/10 p-3 sm:col-span-2">
+            <div>
+              <p className="flex items-center gap-1.5 text-sm font-semibold">
+                <Gauge className="h-4 w-4" />
+                {t("Candidate strength for this job")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("Should the applicants of this job be ranked by the official strength setup, or by a modified one (fields added or removed, other percentages)?")}
+              </p>
+            </div>
+            <Select
+              value={form.strengthOwn ? "own" : "general"}
+              onValueChange={(v) =>
+                setForm((f) => ({
+                  ...f,
+                  strengthOwn: v === "own",
+                  // start from a copy of the official setup
+                  strengthFields: v === "own" && f.strengthFields.length === 0 ? (generalStrength?.fields ?? []).map((x) => ({ ...x })) : f.strengthFields,
+                }))
+              }
+            >
+              <SelectTrigger aria-label={t("Candidate strength for this job")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="general">{t("Keep the official setup (general)")}</SelectItem>
+                <SelectItem value="own">{t("Modify for this job")}</SelectItem>
+              </SelectContent>
+            </Select>
+            {form.strengthOwn && <StrengthFieldsEditor value={form.strengthFields} onChange={(v) => setForm((f) => ({ ...f, strengthFields: v }))} />}
+          </div>
+
           <div className="space-y-2 sm:col-span-2">
             <Label>{t("Announce in the candidate portal")}</Label>
             <Select value={form.announced ? "yes" : "no"} onValueChange={(v) => setForm((f) => ({ ...f, announced: v === "yes" }))}>
@@ -418,12 +467,13 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
   const [specFilter, setSpecFilter] = useState<"any" | "yes" | "no">("any");
   const [noteFilter, setNoteFilter] = useState<string>("");
   const [annFilter, setAnnFilter] = useState<"any" | "yes" | "no">("any");
+  const [strFilter, setStrFilter] = useState<"any" | "general" | "modified">("any");
   const { list: titleList } = useJobTitles();
   const [notes, setNotes] = useState<string[]>([]);
   useEffect(() => {
     if (specFilter === "yes") apiClient.jobSpecialists().then(setNotes).catch(() => setNotes([]));
   }, [specFilter, jobs]);
-  const hasFilters = !!(query || filter !== "all" || categoryFilter || titleFilter || specFilter !== "any" || annFilter !== "any");
+  const hasFilters = !!(query || filter !== "all" || categoryFilter || titleFilter || specFilter !== "any" || annFilter !== "any" || strFilter !== "any");
   const clearFilters = () => {
     setQuery("");
     setFilter("all");
@@ -432,6 +482,7 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
     setSpecFilter("any");
     setNoteFilter("");
     setAnnFilter("any");
+    setStrFilter("any");
   };
   const { index: catIndex } = useCategories();
   const [formOpen, setFormOpen] = useState(false);
@@ -449,7 +500,7 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
   }, [query]);
   useEffect(() => {
     setPage(1);
-  }, [queryKey, filter, categoryFilter, titleFilter, specFilter, noteFilter, annFilter]);
+  }, [queryKey, filter, categoryFilter, titleFilter, specFilter, noteFilter, annFilter, strFilter]);
 
   const load = useCallback(async () => {
     try {
@@ -463,6 +514,7 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
         specialist: specFilter === "any" ? undefined : specFilter,
         specialistNote: specFilter === "yes" ? noteFilter || undefined : undefined,
         announced: annFilter === "any" ? undefined : annFilter,
+        strength: strFilter === "any" ? undefined : strFilter,
       });
       setJobs(res.items);
       setTotal(res.total);
@@ -471,7 +523,7 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load jobs");
     }
-  }, [page, queryKey, filter, categoryFilter, titleFilter, specFilter, noteFilter, annFilter]);
+  }, [page, queryKey, filter, categoryFilter, titleFilter, specFilter, noteFilter, annFilter, strFilter]);
 
   useLoadEffect(load);
 
@@ -598,6 +650,19 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("Candidate strength")}</Label>
+            <Select value={strFilter} onValueChange={(v) => setStrFilter(v as "any" | "general" | "modified")}>
+              <SelectTrigger aria-label={t("Candidate strength")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{t("Any")}</SelectItem>
+                <SelectItem value="general">{t("Official setup (general)")}</SelectItem>
+                <SelectItem value="modified">{t("Modified for the job")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {hasFilters && (
             <div className="flex items-end">
               <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -698,6 +763,12 @@ export function JobsView({ onNavigate }: { onNavigate: (state: NavState) => void
                       <Badge variant={job.announced ? "default" : "secondary"} className="font-normal">
                         {job.announced ? t("Announced") : t("Not announced")}
                       </Badge>
+                      {job.strengthConfig && (
+                        <Badge variant="outline" className="ms-1 border-amber-300 bg-amber-50 font-normal text-amber-700">
+                          <Gauge className="me-1 h-3 w-3" />
+                          {t("Own strength")}
+                        </Badge>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center font-medium tabular-nums">
                       {job._count?.applications ?? 0}

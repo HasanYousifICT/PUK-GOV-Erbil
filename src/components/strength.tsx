@@ -112,6 +112,7 @@ export function StrengthBreakdown({ applicationId }: { applicationId: string }) 
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border">
         <div className={cn("h-full rounded-full", LEVEL_STYLE[data.level].bar)} style={{ width: `${data.score}%` }} />
       </div>
+      {data.custom && <p className="mt-1 text-xs font-medium text-amber-700">{t("This job has its own strength setup")}</p>}
       <p className="mt-1 text-xs text-muted-foreground">{data.applicants <= 1 ? t("The only applicant of {job} so far, so there is nobody to compare with", { job: data.jobTitle }) : t("Compared with {n} applicants of {job}", { n: data.applicants, job: data.jobTitle })}</p>
       <ul className="mt-2 space-y-1.5">
         {data.items.map((x) => (
@@ -119,6 +120,9 @@ export function StrengthBreakdown({ applicationId }: { applicationId: string }) 
             <span className="min-w-0 flex-1 break-words">
               <span className="font-medium">{locale === "ckb" && x.labelCkb ? x.labelCkb : x.label}</span>
               <span className={cn("ms-1.5", x.empty && "text-muted-foreground")}>{x.empty ? t("Not answered") : x.value}</span>
+            </span>
+            <span className="shrink-0 rounded bg-muted px-1.5 py-px text-[10px] tabular-nums text-muted-foreground" dir="ltr" title={t("Percentage of the total")}>
+              {x.weight}%
             </span>
             <span className="shrink-0 text-xs tabular-nums text-muted-foreground" dir="ltr">
               {t("#{n} of {total}", { n: x.position, total: x.of })}

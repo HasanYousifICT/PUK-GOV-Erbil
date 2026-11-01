@@ -22,7 +22,7 @@ export type SessionUser = {
 
 export type ManagedUser = SessionUser & { active: boolean; lastLoginAt: string | null; createdAt: string };
 
-export type JobInput = Partial<Omit<Job, "requirements">> & { requirements?: unknown };
+export type JobInput = Partial<Omit<Job, "requirements">> & { requirements?: unknown; strength?: unknown };
 
 export type PortalRequirement = { rule: { fieldId: string; op: string; value?: string; value2?: string }; met: boolean; label: string; labelCkb: string; fieldType: string };
 export type Quota = { max: number; used: number; remaining: number | null };
@@ -163,6 +163,7 @@ export type Job = {
   announced?: boolean;
   requirements?: string;
   requirementsNote?: string;
+  strengthConfig?: string; // "" = follows the general candidate strength; else this job's own fields (JSON)
   createdAt: string;
   updatedAt: string;
   _count?: { applications: number };
@@ -235,9 +236,11 @@ export type StrengthExplain = {
   mediumMin: number;
   applicants: number;
   jobTitle: string;
-  items: { fieldId: string; label: string; labelCkb: string; fieldType: string; dir: "high" | "low"; value: string; empty: boolean; position: number; of: number; rank: number }[];
+  custom: boolean;
+  items: { fieldId: string; label: string; labelCkb: string; fieldType: string; dir: "high" | "low"; weight: number; value: string; empty: boolean; position: number; of: number; rank: number }[];
 };
-export type StrengthSaved = { config: StrengthConfig; updated: number; total: number; levels: Record<StrengthLevel, number> };
+export type StrengthJob = { id: string; title: string; status: string; location: string; applications: number; fields: StrengthConfig["fields"] };
+export type StrengthSaved = { config: StrengthConfig; updated: number; total: number; levels: Record<StrengthLevel, number>; jobs: StrengthJob[] };
 
 export type RequirementsPreview = { total: number; matching: number; perRule: number[]; truncated: boolean };
 
@@ -389,11 +392,12 @@ export const apiClient = {
   jobSpecialists: () => api<string[]>("/api/jobs/specialists"),
   getStrengthConfig: () => api<StrengthConfig>("/api/strength-config"),
   setStrengthConfig: (c: StrengthConfig) => api<StrengthSaved>("/api/strength-config", { method: "PUT", body: JSON.stringify(c) }),
+  strengthJobs: () => api<StrengthJob[]>("/api/strength-config/jobs"),
   applicationStrength: (id: string) => api<StrengthExplain>(`/api/applications/${id}/strength`),
   /** How many candidates meet a set of job requirements (all together and each one on its own). */
   previewRequirements: (requirements: CustomFilter[]) =>
     api<RequirementsPreview>("/api/jobs/requirements-preview", { method: "POST", body: JSON.stringify({ requirements }) }),
-  listJobsPage: (p: { page?: number; pageSize?: number; q?: string; status?: string; categoryId?: string; title?: string; specialist?: string; specialistNote?: string; announced?: string }) =>
+  listJobsPage: (p: { page?: number; pageSize?: number; q?: string; status?: string; categoryId?: string; title?: string; specialist?: string; specialistNote?: string; announced?: string; strength?: string }) =>
     api<Paged<Job>>(`/api/jobs${qs({ pageSize: 50, ...p, page: p.page ?? 1 })}`),
   /** A short list for pickers: at most `limit` jobs matching the search. */
   searchJobs: (p: { q?: string; status?: string; categoryId?: string; title?: string; specialist?: string; specialistNote?: string; limit?: number }) =>

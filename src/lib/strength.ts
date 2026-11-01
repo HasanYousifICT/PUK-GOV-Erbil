@@ -10,16 +10,16 @@ export type StrengthFieldRule = {
   dir: StrengthDir;
   /** dropdown / multi-select: the options from strongest to weakest, chosen by the admin (replaces `dir`) */
   order?: string[];
+  /** this field's share of the total, in percent (the shares of all fields add up to 100) */
+  weight: number;
   /** multi-select: rank by how many are ticked, or by the best option ticked (uses `order`) */
   by?: "count" | "best";
 };
 
-/** "priority": the first field weighs the most, the last the least. "equal": every field counts the same (average). */
-export type StrengthMode = "priority" | "equal";
-
 export type StrengthConfig = {
   fields: StrengthFieldRule[];
-  mode: StrengthMode;
+  /** how many jobs have their own setup (only set by the server, for the screens) */
+  modifiedJobs?: number;
   /** score from which an applicant is "Strong" / "Medium" (below mediumMin it is "Weak") */
   strongMin: number;
   mediumMin: number;
@@ -54,7 +54,8 @@ export function parseStrengthConfig(raw: unknown): StrengthConfig {
       const f = x as Record<string, unknown> | null;
       if (!f || typeof f.fieldId !== "string" || !f.fieldId || seen.has(f.fieldId)) continue;
       seen.add(f.fieldId);
-      const rule: StrengthFieldRule = { fieldId: f.fieldId, dir: f.dir === "low" ? "low" : "high" };
+      const w = typeof f.weight === "number" ? f.weight : typeof f.weight === "string" && f.weight.trim() !== "" ? Number(f.weight) : NaN;
+      const rule: StrengthFieldRule = { fieldId: f.fieldId, dir: f.dir === "low" ? "low" : "high", weight: Number.isFinite(w) ? Math.min(100, Math.max(0, Math.round(w * 100) / 100)) : -1 };
       if (Array.isArray(f.order)) {
         const order = [...new Set(f.order.filter((x): x is string => typeof x === "string" && x !== ""))].slice(0, 1000);
         if (order.length) rule.order = order;
@@ -64,14 +65,30 @@ export function parseStrengthConfig(raw: unknown): StrengthConfig {
       if (fields.length >= MAX_STRENGTH_FIELDS) break;
     }
   }
+  // a setup saved without percentages (or with a broken one): share 100% equally
+  if (fields.some((x) => x.weight < 0)) splitEqually(fields);
   let strongMin = clampInt(r.strongMin, 2, 100, DEFAULT_STRONG_MIN);
   let mediumMin = clampInt(r.mediumMin, 1, 99, DEFAULT_MEDIUM_MIN);
   if (mediumMin >= strongMin) mediumMin = Math.max(1, strongMin - 1);
   if (strongMin <= mediumMin) strongMin = mediumMin + 1;
-  return { fields, mode: r.mode === "equal" ? "equal" : "priority", strongMin, mediumMin };
+  return { fields, strongMin, mediumMin };
 }
 
-export const strengthEnabled = (c: StrengthConfig | null | undefined): boolean => !!c && c.fields.length > 0;
+/** Percentages of a list of fields, equal shares of 100 (two decimals; the last one takes the rounding rest). */
+export function splitEqually(fields: StrengthFieldRule[], total = 100): void {
+  const n = fields.length;
+  if (!n) return;
+  const base = Math.floor((total / n) * 100) / 100;
+  fields.forEach((f, i) => (f.weight = i === n - 1 ? Math.round((total - base * (n - 1)) * 100) / 100 : base));
+}
+
+export const sumWeights = (fields: Pick<StrengthFieldRule, "weight">[]): number => Math.round(fields.reduce((a, f) => a + (f.weight > 0 ? f.weight : 0), 0) * 100) / 100;
+
+/** The percentages add up to 100 (a hair of rounding is allowed). */
+export const weightsComplete = (fields: Pick<StrengthFieldRule, "weight">[]): boolean => fields.length > 0 && Math.abs(sumWeights(fields) - 100) <= 0.05;
+
+/** Strength is shown when the general setup has fields or at least one job has its own. */
+export const strengthEnabled = (c: StrengthConfig | null | undefined): boolean => !!c && (c.fields.length > 0 || (c.modifiedJobs ?? 0) > 0);
 
 export function levelOf(score: number, cfg: Pick<StrengthConfig, "strongMin" | "mediumMin">): StrengthLevel {
   return score >= cfg.strongMin ? "strong" : score >= cfg.mediumMin ? "medium" : "weak";
@@ -156,12 +173,11 @@ export type StrengthRow = { id: string; customData: CustomData };
 
 /**
  * Score every applicant of ONE job, 0-100. Per field an applicant gets full credit for the best answer (ties for the
- * best answer all get full credit) and less the more applicants answered better. The fields are then averaged:
- * "priority" gives the first field the biggest share (k, k-1 … 1), "equal" the same share to each. Applicants who are
- * identical on every chosen field (or a lone applicant) are neutral: 50.
+ * best answer all get full credit) and less the more applicants answered better. The fields count by the percentage
+ * the admin gave each one. Applicants identical on every chosen field (or a lone applicant) are neutral: 50.
  */
 export function scoreApplicants(
-  cfg: StrengthConfig,
+  cfg: Pick<StrengthConfig, "fields">,
   fields: CandidateField[],
   rows: StrengthRow[]
 ): Map<string, { score: number; parts: StrengthPart[] }> {
@@ -195,8 +211,8 @@ export function scoreApplicants(
   }
 
   const k = rules.length;
-  const weights = rules.map((_, idx) => (cfg.mode === "equal" ? 1 : k - idx));
-  const wTotal = weights.reduce((a, b) => a + b, 0);
+  const weights = rules.map((r) => (r.weight > 0 ? r.weight : 0));
+  const wTotal = weights.reduce((a, b) => a + b, 0) || 1;
   const identical = tuples.every((tp) => tp.every((v, j) => v === tuples[0][j]));
   rows.forEach((r, i) => {
     const score = !k ? 0 : identical ? 50 : Math.round((share[i].reduce((a, v, j) => a + v * weights[j], 0) / wTotal) * 100);

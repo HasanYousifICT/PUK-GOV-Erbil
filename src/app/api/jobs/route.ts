@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError, handle, json, readJson, requireAuth, requireLevel, str } from "@/lib/api";
+import { normalizeJobStrength } from "@/lib/strength-server";
 import { normalizeRequirements } from "@/lib/job-requirements-server";
 import { resolveSpecialist } from "@/lib/job-specialist";
 import { ensureTitle } from "@/lib/job-titles";
@@ -33,6 +34,9 @@ export async function GET(req: Request) {
     const ann = sp.get("announced");
     if (ann === "yes") and.push({ announced: true });
     if (ann === "no") and.push({ announced: false });
+    const strength = sp.get("strength");
+    if (strength === "modified") and.push({ strengthConfig: { not: "" } });
+    if (strength === "general") and.push({ strengthConfig: "" });
     if (q) and.push({ OR: [{ title: has(q) }, { location: has(q) }, { skills: has(q) }] });
     if (categoryId) {
       const cats = await db.jobCategory.findMany({ select: { id: true, parentId: true } });
@@ -88,11 +92,13 @@ export async function POST(req: Request) {
     await ensureTitle(title);
     const sp = await resolveSpecialist({ title, categoryId, specialist: body.specialist, note: body.specialistNote });
     const requirements = await normalizeRequirements(body.requirements);
+    const strengthConfig = await normalizeJobStrength(body.strength);
     const job = await db.job.create({
       data: {
         ...sp,
         announced: body.announced === true,
         requirements,
+        strengthConfig,
         requirementsNote: str(body.requirementsNote).trim().slice(0, 2000),
         categoryId,
         title,
